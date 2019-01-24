@@ -1,0 +1,17 @@
+import numpy as np
+from common import *
+
+#     Returns the value of the planck function at a given frequency, freq, and temperature, t.
+def planck(freq, t):
+
+    if (t < eps):
+        planck=0.
+
+    else:
+    #     Explicitely take Wien approximation for h*nu>>k*T:
+        if (hplanck*freq > 100.*kboltz*t):
+            planck = 2.*hplanck*((freq/clight)**2.)*freq*np.exp(-hplanck*freq/(kboltz*t))
+        else:
+            planck = 2.*hplanck*((freq/clight)**2.)*freq/(np.exp(hplanck*freq/(kboltz*t))-1.)
+
+    return planck
