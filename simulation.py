@@ -3,16 +3,17 @@ from model import model
 from molecule import molecule
 from common import *
 from numerical import *
+from kappa import generate_kappa
 
 class simulation:
-    def __init__(self, source, outfile, molfile, goalsnr, nphot, kappa='jena,thin,e5', tnorm=100, velocity='grid', seed=1971, minpop=1e-4, fixset=1.e-6, debug=False):
+    def __init__(self, source, outfile, molfile, goalsnr, nphot, kappa=None, tnorm=100, velocity='grid', seed=1971, minpop=1e-4, fixset=1.e-6, debug=False):
         # Init user specified parameters
         self.source = source
         self.outfile = outfile
         self.molfile = molfile
         self.goalsnr = goalsnr
         # not setting nphot yet, setting later as array w/ size ncell
-        self.kappa = kappa
+        self.kappa_params = kappa
         self.tnorm = tnorm
         self.seed = seed
         self.minpop = minpop
@@ -28,7 +29,6 @@ class simulation:
         if velocity == 'grid':
             if 'vr' not in self.model.grid:
                 raise Exception('ERROR: Velicity mode specified as grid, but no valid velocity field included in model.')
-            
         else:
             try:
                 # Read in user velocity function and override the grid lookup function
@@ -51,18 +51,20 @@ class simulation:
         # Also initialize dust emissivity, converting from m2/kg_dust
         # to "m-1 per H2/cm3" (so that tau_dust=knu)
         self.norm = np.zeros(self.nline)
+        self.cmb = np.zeros(self.nline)
         for iline in range(self.nline):
-            self.norm[iline] = planck(1, tnorm)
-            if (tcmb > 0.):
-                cmb[iline] = planck(iline, tcmb)/self.norm[iline]
-            else:
-                cmb[iline] = 0.
+            self.norm[iline] = planck(self.mol.freq[0], tnorm)
+            if (self.model.tcmb > 0.):
+                self.cmb[iline] = planck(self.mol.freq[iline], self.model.tcmb)/self.norm[iline]
+
+        # Parse kappa parameters and generate the kappa function
+        self.kappa = generate_kappa(self.kappa_params)
 
         # Do not normalize dust; will be done in photon
         self.knu = np.zeros((self.nline, self.ncell))
         for iline in range(self.nline):
-            for idx in range(sim.ncell):
-                self.knu[iline, idx] = kappa[idx, freq[iline]]*2.4*amu/self.model.gas2dust*self.model.grid['nh2'][idx] # TODO kappa
+            for idx in range(self.ncell):
+                self.knu[iline, idx] = self.kappa(idx, self.mol.freq[iline])*2.4*amu/self.model.gas2dust*self.model.grid['nh2'][idx]
 
 
         # Set up the Monte Carlo simulation

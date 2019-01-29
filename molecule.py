@@ -1,4 +1,5 @@
 import numpy as np
+from common import *
 
 class molecule:
     def __init__(self, sim, molfile, debug):
@@ -47,6 +48,10 @@ class molecule:
             level_data[i] = line.split()
         level_data = np.array(level_data).astype(float)
 
+        # Parse level properties - energies and statistical weights
+        self.eterm = level_data[:,1]
+        self.gstat = level_data[:,2]
+
 
         # Read in the line data
         line_data = lines[10 + self.nlev : 10 + self.nlev+self.nline]
@@ -54,17 +59,48 @@ class molecule:
             line_data[i] = line.split()
         line_data = np.array(line_data).astype(float)
 
+        # Parse line properties - upper/lower levels, frequencies, einstein coefficients
+        self.lau = line_data[:,1].astype(int)-1
+        self.lal = line_data[:,2].astype(int)-1
+        self.aeinst = line_data[:,3]
+        self.freq = line_data[:,4]*1.e9
+        self.beinstu = self.aeinst*(clight/self.freq)**2/(hplanck*self.freq)/2.
+        self.beinstl = np.take(self.gstat, self.lau)/np.take(self.gstat, self.lal)*self.beinstu
+
+
+        # Read collision temperatures
+        self.coll_temps = np.array((lines[19 + self.nlev + self.nline]).split()).astype(float)
 
         # Read in the collision data
-        coll_data = lines[21 + self.nlev + self.nline : 21 + self.nlev + self.nline + self.ntrans]
-        for i, line in enumerate(coll_data):
-            coll_data[i] = line.split()
-        coll_data = np.array(coll_data).astype(float)
+        self.coll_data = lines[21 + self.nlev + self.nline : 21 + self.nlev + self.nline + self.ntrans]
+        for i, line in enumerate(self.coll_data):
+            self.coll_data[i] = line.split()
+        self.coll_data = np.array(self.coll_data).astype(float)
 
-        print coll_data
+        # convert cm^3/s to m^3/s
+        self.coll_data /= 1.e6
 
 
+        # Read in second collision partner data if it exists:
+        if self.part2id:
+            # Read collision temperatures
+            self.coll_temps2 = np.array((lines[28 + self.nlev + self.nline + self.ntrans]).split()).astype(float)
 
+            # Read in the collision data
+            self.coll_data2 = lines[30 + self.nlev + self.nline + self.ntrans : 30 + self.nlev + self.nline + self.ntrans + self.ntrans2]
+            for i, line in enumerate(self.coll_data2):
+                self.coll_data2[i] = line.split()
+            self.coll_data2 = np.array(self.coll_data2).astype(float)
+ 
+            # convert cm^3/s to m^3/s
+            self.coll_data2 /= 1.e6
+
+
+        # Concatenate collisional data and trim off metadata
+        if self.part2id:
+            self.colld = [self.coll_data[:,3:].tolist(), self.coll_data2[:,3:].tolist()]
+        else:
+            self.colld = [self.coll_data[:,3:].tolist()]
 
 
         # Initialize some other properties, jbar, etc...
