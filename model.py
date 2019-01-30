@@ -110,9 +110,12 @@ class model:
 
     def velo(self, idx, x):
         v = np.zeros(3)
-        v[0] = self.grid['vr'][idx]
-        v[1] = self.grid['vz'][idx]
-        v[2] = self.grid['va'][idx]
+        if 'vr' in self.grid:
+            v[0] = self.grid['vr'][idx]
+        if 'vz' in self.grid:
+            v[1] = self.grid['vz'][idx]
+        if 'va' in self.grid:
+            v[2] = self.grid['va'][idx]
 
         return v
 

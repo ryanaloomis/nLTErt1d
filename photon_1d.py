@@ -1,14 +1,14 @@
 import numpy as np
-from simulation import simulation
-from model import model
+from simulation import *
+from model import *
 from common import *
 from vfunc_1d import *
 
 def photon(sim, idx, debug):
-    phot = np.zeros((sim.nline+2, sim.nphot[idx]))
-    tau = np.zeros(sim.nline)
+    sim.phot *= 0.
+    sim.tau *= 0. 
 
-    for iphot in range(sim.nphot[idx])
+    for iphot in range(sim.nphot[idx]):
         posn = idx
         firststep = True
 
@@ -42,14 +42,14 @@ def photon(sim, idx, debug):
         # leaving the source, add CMB and store intensities in 
         # phot(iline+2,iphot)        
 
-        in_cloud = True:
+        in_cloud = True
 
         while in_cloud:
             cosphi = np.cos(phi)
             sinphi = np.sin(phi)
 
             # Find distance to nearest cell edge
-            if (np.abs(phi) < np.pi/2.) or (posn == 1):
+            if (np.abs(phi) < np.pi/2.) or (posn == 0):
                 dpos = 1
                 rnext = sim.model.grid['rb'][posn]*(1 + delta)
                 bac = 4.*((rpos*cosphi)**2. - rpos**2. + rnext**2.)
@@ -77,56 +77,56 @@ def photon(sim, idx, debug):
             # Number of splines nspline=los_delta_v/local_line_width
             # Number of averaging steps naver=local_delta_v/local_line_width
 
-            if (nmol[posn] > eps):
+            if (sim.model.grid['nmol'][posn] > eps):
                 b = sim.model.grid['doppb'][posn]
-                v1 = vfunc(0., idx, rpos, phi)
-                v2 = vfunc(ds, idx, rpos, phi)
+                v1 = vfunc(sim, 0., idx, rpos, phi, deltav)
+                v2 = vfunc(sim, ds, idx, rpos, phi, deltav)
                 nspline = np.max(1, int(np.abs(v1 - v2)/b))
                 vfac = 0.
                 for ispline in range(nspline):
                     s1 = ds*(ispline)/nspline
                     s2 = ds*(ispline+1.)/nspline
-                    v1 = vfunc(s1, idx, rpos, phi)
-                    v2 = vfunc(s2, idx, rpos, phi)
+                    v1 = vfunc(sim, s1, idx, rpos, phi, deltav)
+                    v2 = vfunc(sim, s2, idx, rpos, phi, deltav)
                     naver = np.max(1, int(np.abs(v1 - v2)/b))
                     for iaver in range(naver):
                         s = s1 + (s2-s1)*(iaver + 0.5)/naver
-                        v = vfunc(s, idx, rpos, phi)
+                        v = vfunc(sim, s, idx, rpos, phi, deltav)
                         vfacsub = np.exp(-(v/b)**2)
                         vfac = vfacsub/naver
                 vfac /= nspline
 
                 # backwards integrate dI/ds            
                 for iline in range(sim.nline):
-                    jnu = sim.model.dust[iline,posn]*sim.model.knu[iline,posn] + vfac*hpip/b*sim.model.grid['nmol'][posn]*sim.pops[sim.mol.lau[iline],posn]*sim.mol.aeinst[iline] # TODO
+                    jnu = sim.dust[iline,posn]*sim.knu[iline,posn] + vfac*hpip/b*sim.model.grid['nmol'][posn]*sim.pops[sim.mol.lau[iline],posn]*sim.mol.aeinst[iline]
 
-                    alpha = self.model.knu[iline,posn] + vfac*hpip/b*sim.model.grid['nmol'][posn]*(sim.pops[sim.mol.lal[iline],posn]*sim.mol.beinstl[iline] - sim.pops[lau[iline],posn]*sim.mol.beinstu[iline]) # TODO
+                    alpha = sim.knu[iline,posn] + vfac*hpip/b*sim.model.grid['nmol'][posn]*(sim.pops[sim.mol.lal[iline],posn]*sim.mol.beinstl[iline] - sim.pops[sim.mol.lau[iline],posn]*sim.mol.beinstu[iline])
 
                     if (np.abs(alpha) < eps):
                         snu = 0.
                     else:
-                        snu = jnu/alpha/norm[iline] # TODO
+                        snu = jnu/alpha/sim.norm[iline]
 
                     dtau = alpha*ds
                     if (dtau < negtaulim): # Limit negative opacity
                         dtau = negtaulim
 
                     if not firststep:
-                        phot[iline+2, iphot] += np.exp(-tau[iline])*(1. - np.exp(-dtau))*snu
-                        tau[iline] = tau[iline] + dtau
-                        if (tau[iline] < negtaulim):
-                            tau[iline] = negtaulim
+                        sim.phot[iline+2, iphot] += np.exp(-sim.tau[iline])*(1. - np.exp(-dtau))*snu
+                        sim.tau[iline] = sim.tau[iline] + dtau
+                        if (sim.tau[iline] < negtaulim):
+                            sim.tau[iline] = negtaulim
 
                 if firststep:
-                    phot[0, iphot] = ds
-                    phot[1, iphot] = vfac
+                    sim.phot[0, iphot] = ds
+                    sim.phot[1, iphot] = vfac
                     firststep = False
 
 
             # Update photon position, direction; check if escaped
             posn = posn + dpos
-            if (posn > ncell):
-                continue        # reached edge of cloud, break
+            if (posn >= sim.ncell):
+                break        # reached edge of cloud, break
 
             psi = np.arctan2(ds*sinphi, rpos + ds*cosphi)
             phif = phi - psi
@@ -135,8 +135,8 @@ def photon(sim, idx, debug):
 
         # Finally, add cmb to memorized i0 incident on cell id
         if (sim.model.tcmb > 0.):
-            for iline in range(nline):
-                phot[iline+2, iphot] += np.exp(-tau[iline])*sim.model.cmb[iline] # TODO
+            for iline in range(sim.nline):
+                sim.phot[iline+2, iphot] += np.exp(-sim.tau[iline])*sim.cmb[iline]
 
     return
 

@@ -12,9 +12,9 @@ def amc(source, outfile, molfile, goalsnr, nphot, kappa='jena,thin,e5', tnorm=10
     sim = simulation(source, outfile, molfile, goalsnr, nphot, kappa, tnorm, velo, seed, minpop, fixset, debug)
     
     # Calculate the level populations
-    #sim.calc_pops()
+    sim.calc_pops()
 
     #if disk:
         # TODO
 
-amc('example.mdl', '', 'cn-hfs.dat', 0, 1)
+amc('example.mdl', '', 'cn-hfs.dat', 20, 1000)

@@ -4,6 +4,8 @@ from molecule import molecule
 from common import *
 from numerical import *
 from kappa import generate_kappa
+from photon_1d import photon
+from stateq import *
 
 class simulation:
     def __init__(self, source, outfile, molfile, goalsnr, nphot, kappa=None, tnorm=100, velocity='grid', seed=1971, minpop=1e-4, fixset=1.e-6, debug=False):
@@ -62,10 +64,11 @@ class simulation:
 
         # Do not normalize dust; will be done in photon
         self.knu = np.zeros((self.nline, self.ncell))
+        self.dust = np.zeros((self.nline, self.ncell))
         for iline in range(self.nline):
             for idx in range(self.ncell):
                 self.knu[iline, idx] = self.kappa(idx, self.mol.freq[iline])*2.4*amu/self.model.gas2dust*self.model.grid['nh2'][idx]
-
+                self.dust[iline,idx] = planck(self.mol.freq[iline],self.model.grid['tdust'][idx])
 
         # Set up the Monte Carlo simulation
         self.pops = np.zeros((self.nlev, self.ncell))
@@ -74,12 +77,14 @@ class simulation:
         self.nphot = np.full(self.ncell, nphot)         # Set nphot to initial number
         self.niter = self.ncell                           # Estimated crossing time
         self.fixseed = self.seed
+        self.phot = np.zeros((self.nline+2, nphot))
+        self.tau = np.zeros(self.nline)
 
 
 
     def calc_pops(self):
         print('AMC')
-        print('AMC: Starting with FIXSET convergence; limit=' + str(fixset))
+        print('AMC: Starting with FIXSET convergence; limit=' + str(self.fixset))
 
         stage = 1                           # 1=initial phase with fixed photon paths=FIXSET
         percent = 0
@@ -90,7 +95,7 @@ class simulation:
             exceed = 0
             totphot = 0
             totphot2 = 0
-            minsr=1./self.fixset                 # fixset is smallest number to be counted
+            minsnr=1./self.fixset                 # fixset is smallest number to be counted
             staterr = 0.
 
             for idx in range(self.ncell):        # Loop over all cells
@@ -100,11 +105,11 @@ class simulation:
                         np.random.seed(self.fixseed)
                         dummy = np.random.random()
                     
-                    for ilev in range(nlev):
+                    for ilev in range(self.nlev):
                         self.oopops[ilev, idx] = self.opops[ilev, idx]
                         self.opops[ilev, idx] = self.pops[ilev, idx]
 
-                    if (nh2[idx] >= eps):
+                    if (self.model.grid['nh2'][idx] >= eps):
                         if self.debug: print('[debug] calling photon for cell ' + str(idx))
                         photon(self, idx, self.debug)
 
@@ -118,9 +123,9 @@ class simulation:
                 var = 0.
                 totphot += self.nphot[idx]
 
-                for ilev in range(nlev):
+                for ilev in range(self.nlev):
                     self.avepops = (self.pops[ilev, idx] + self.opops[ilev, idx] + self.oopops[ilev, idx])/3.
-                    if (self.avepops >= minpop):
+                    if (self.avepops >= self.minpop):
                         var = np.max([np.abs(self.pops[ilev, idx] - self.avepops)/self.avepops, np.abs(self.opops[ilev, idx] - self.avepops)/self.avepops, np.abs(self.oopops[ilev, idx] - self.avepops)/self.avepops])
                         snr = np.max([snr, var])
                 snr = 1./snr
@@ -175,5 +180,5 @@ class simulation:
         print('AMC: ' + str(minsnr) + '  |  ' + str(percent) + '% |  ' + str(totphot) + '  |  converged')
         print('AMC:')
 
-        blowpops(self.outfile, self.molfile, self.snrgoal, minsnr, percent, stage, self.fixset, self.trace) # TODO
+        #blowpops(self.outfile, self.molfile, self.snrgoal, minsnr, percent, stage, self.fixset, self.trace) # TODO
         print('AMC: Written output to ' + str(self.outfile))

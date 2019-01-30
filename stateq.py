@@ -1,7 +1,8 @@
 import numpy as np
-from simulation import simulation
-from model import model
+from simulation import *
+from model import *
 from common import *
+from getjbar import *
 
 miniter = 10
 maxiter = 100
@@ -20,7 +21,7 @@ def stateq(sim, idx, debug):
     for iter in range(maxiter):
         # get updated jbar
         if (debug): print('[debug] calling getjbar, iter= ' + str(iter))
-        getjbar(idx) # TODO
+        getjbar(sim, idx, debug) # TODO
 
         newpop = np.zeros(sim.nlev + 1)
         newpop[-1] = 1.
@@ -38,7 +39,7 @@ def stateq(sim, idx, debug):
         
         numb = 0
         diff = 0
-        for s in range(nlev)
+        for s in range(sim.nlev):
             newpop[s] = np.max([newpop[s], eps])
             oopop[s] = opop[s]
             sim.pops[s, idx] = newpop[s]
