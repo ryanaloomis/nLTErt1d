@@ -1,6 +1,9 @@
 import numpy as np
 from common import *
 
+# converts energy in cm-1 to J
+hckb = 100.*hplanck*clight/kboltz
+
 class molecule:
     def __init__(self, sim, molfile, debug):
         self.sim = sim
@@ -67,6 +70,10 @@ class molecule:
         self.beinstu = self.aeinst*(clight/self.freq)**2/(hplanck*self.freq)/2.
         self.beinstl = np.take(self.gstat, self.lau)/np.take(self.gstat, self.lal)*self.beinstu
 
+        # Add thermal broadening to linewidths
+        amass = self.molweight*amu
+        for idx in range(sim.ncell):
+            sim.model.grid['doppb'][idx] = np.sqrt(sim.model.grid['doppb'][idx]**2. + 2.*kboltz/amass*sim.model.grid['tkin'][idx])
 
         # Read collision temperatures
         self.coll_temps = np.array((lines[19 + self.nlev + self.nline]).split()).astype(float)
@@ -78,7 +85,7 @@ class molecule:
         self.coll_data = np.array(self.coll_data).astype(float)
 
         # convert cm^3/s to m^3/s
-        self.coll_data /= 1.e6
+        self.coll_data[:,3:] /= 1.e6
 
 
         # Read in second collision partner data if it exists:
@@ -93,14 +100,49 @@ class molecule:
             self.coll_data2 = np.array(self.coll_data2).astype(float)
  
             # convert cm^3/s to m^3/s
-            self.coll_data2 /= 1.e6
+            self.coll_data2[:,3:] /= 1.e6
 
 
-        # Concatenate collisional data and trim off metadata
+        # Trim off metadata
+        self.lcu = self.coll_data[:,1].astype(int) - 1
+        self.lcl = self.coll_data[:,2].astype(int) - 1
+        self.colld = self.coll_data[:,3:]
+
         if self.part2id:
-            self.colld = [self.coll_data[:,3:].tolist(), self.coll_data2[:,3:].tolist()]
-        else:
-            self.colld = [self.coll_data[:,3:].tolist()]
+            self.lcu2 = self.coll_data2[:,1].astype(int) - 1
+            self.lcl2 = self.coll_data2[:,2].astype(int) - 1
+            self.colld2 = self.coll_data2[:,3:]
+
+
+        # Calculate upward/downward rates in all non-empty cells.
+        # Interpolate downward rates, but do not extrapolate.
+        self.up = np.zeros((self.ntrans, sim.ncell))
+        self.down = np.zeros((self.ntrans, sim.ncell))
+        
+        for idx in range(sim.ncell):
+            for t in range(self.ntrans):
+                self.down[t,idx] = np.interp(sim.model.grid['tkin'][idx], self.coll_temps, self.colld[t]) 
+
+        self.down[:,sim.model.grid['tkin'] > self.coll_temps[-1]] = self.colld[:,-1, np.newaxis]
+        
+        for idx in range(sim.ncell):
+            for t in range(self.ntrans):
+                self.up[t,idx] = self.gstat[self.lcu[t]]/self.gstat[self.lcl[t]]*self.down[t,idx]*np.exp(-hckb*(self.eterm[self.lcu[t]]-self.eterm[self.lcl[t]])/sim.model.grid['tkin'][idx])
+
+
+        if self.part2id:
+            self.up2 = np.zeros((self.ntrans2, sim.ncell))
+            self.down2 = np.zeros((self.ntrans2, sim.ncell))
+            
+            for idx in range(sim.ncell):
+                for t in range(self.ntrans2):
+                    self.down2[t,idx] = np.interp(sim.model.grid['tkin'][idx], self.coll_temps2, self.colld2[t]) 
+
+            self.down2[:,sim.model.grid['tkin'] > self.coll_temps2[-1]] = self.colld2[:,-1, np.newaxis]
+            
+            for idx in range(sim.ncell):
+                for t in range(self.ntrans2):
+                    self.up2[t,idx] = self.gstat[self.lcu2[t]]/self.gstat[self.lcl2[t]]*self.down2[t,idx]*np.exp(-hckb*(self.eterm[self.lcu2[t]]-self.eterm[self.lcl2[t]])/sim.model.grid['tkin'][idx])
 
 
         # Initialize some other properties, jbar, etc...

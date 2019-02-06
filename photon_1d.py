@@ -3,12 +3,12 @@ from simulation import *
 from model import *
 from common import *
 from vfunc_1d import *
+from numerical import *
 
 def photon(sim, idx, debug):
     sim.phot *= 0.
-    sim.tau *= 0. 
-
     for iphot in range(sim.nphot[idx]):
+        sim.tau *= 0. 
         posn = idx
         firststep = True
 
@@ -19,22 +19,18 @@ def photon(sim, idx, debug):
         # homogeneously distributed over +/-2.15 * local Doppler b from
         # local velocity.
 
-        np.random.seed(sim.seed)
-        dummy = np.random.random()
+        dummy = ran1()
         if (sim.model.grid['ra'][idx] > 0.):
             rpos = sim.model.grid['ra'][idx]*(1. + dummy*((sim.model.grid['rb'][idx]/sim.model.grid['ra'][idx])**3 - 1.))**(1./3.)
         else:
             rpos = sim.model.grid['rb'][idx]*dummy**(1./3.)
 
-        np.random.seed(sim.seed)
-        dummy = 2.*np.random.random() - 1.
-        phi = np.sin(dummy) + np.pi/2.
+        dummy = 2.*ran1() - 1.
+        phi = np.arcsin(dummy) + np.pi/2.
 
         if debug: print('[debug] calling velo, iphot = ' + str(iphot))
         vel = sim.model.velo(idx, rpos)
-        np.random.seed(sim.seed)
-        deltav = (np.random.random() - 0.5)*4.3*sim.model.grid['doppb'][idx] + np.cos(phi)*vel[0]
-
+        deltav = (ran1() - 0.5)*4.3*sim.model.grid['doppb'][idx] + np.cos(phi)*vel[0]
 
         # Propagate to edge of cloud by moving from cell edge to cell edge.
         # After the first step (i.e., after moving to the edge of cell id),
@@ -80,20 +76,20 @@ def photon(sim, idx, debug):
             if (sim.model.grid['nmol'][posn] > eps):
                 b = sim.model.grid['doppb'][posn]
                 v1 = vfunc(sim, 0., idx, rpos, phi, deltav)
-                v2 = vfunc(sim, ds, idx, rpos, phi, deltav)
-                nspline = np.max(1, int(np.abs(v1 - v2)/b))
+                v2 = vfunc(sim, ds, idx, rpos, phi, deltav)   
+                nspline = np.maximum(1, int(np.abs(v1 - v2)/b))
                 vfac = 0.
                 for ispline in range(nspline):
                     s1 = ds*(ispline)/nspline
                     s2 = ds*(ispline+1.)/nspline
                     v1 = vfunc(sim, s1, idx, rpos, phi, deltav)
                     v2 = vfunc(sim, s2, idx, rpos, phi, deltav)
-                    naver = np.max(1, int(np.abs(v1 - v2)/b))
+                    naver = np.maximum(1, int(np.abs(v1 - v2)/b))
                     for iaver in range(naver):
                         s = s1 + (s2-s1)*(iaver + 0.5)/naver
                         v = vfunc(sim, s, idx, rpos, phi, deltav)
                         vfacsub = np.exp(-(v/b)**2)
-                        vfac = vfacsub/naver
+                        vfac += vfacsub/naver
                 vfac /= nspline
 
                 # backwards integrate dI/ds            

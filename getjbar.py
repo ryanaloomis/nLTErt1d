@@ -30,17 +30,17 @@ def getjbar(sim, idx, debug):
             else:
                 snu = jnu/alpha/sim.norm[iline]
 
-            dtau = alpha*ds
-            if (dtau < negtaulim): # Limit negative opacity
-                dtau = negtaulim
-
+            tau = alpha*ds
+            if (tau < negtaulim): # Limit negative opacity
+                tau = negtaulim
+            
             # Add intensity along line segment
-            sim.mol.jbar[iline] += vfac*(np.exp(-sim.tau[iline])*sim.phot[iline+2, iphot] + (1 - np.exp(-sim.tau[iline]))*snu)
+            sim.mol.jbar[iline] += vfac*(np.exp(-tau)*sim.phot[iline+2, iphot] + (1 - np.exp(-tau))*snu)
 
         vsum += vfac
 
-        if (vsum > 0.):
-            for iline in range(sim.nline):
-                sim.mol.jbar[iline] *= sim.norm[iline]/vsum # Normalize and scale by norm and vsum
+    if (vsum > 0.):
+        for iline in range(sim.nline):
+            sim.mol.jbar[iline] *= sim.norm[iline]/vsum # Normalize and scale by norm and vsum
 
     return
