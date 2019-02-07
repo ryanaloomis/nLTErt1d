@@ -17,4 +17,4 @@ def amc(source, outfile, molfile, goalsnr, nphot, kappa='jena,thin,e5', tnorm=2.
     #if disk:
         # TODO
 
-amc('example.mdl', 'example.pop', 'hco+.dat', 20, 10)
+amc('example.mdl', 'example.pop', 'hco+.dat', 20, 1000)

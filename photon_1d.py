@@ -4,10 +4,12 @@ from model import *
 from common import *
 from vfunc_1d import *
 from numerical import *
+from time import time
 
 def photon(sim, idx, debug):
     sim.phot *= 0.
     for iphot in range(sim.nphot[idx]):
+        #start = time()
         sim.tau *= 0. 
         posn = idx
         firststep = True
@@ -43,6 +45,7 @@ def photon(sim, idx, debug):
         in_cloud = True
 
         while in_cloud:
+            #t0 = time()
             cosphi = np.cos(phi)
             sinphi = np.sin(phi)
 
@@ -69,13 +72,14 @@ def photon(sim, idx, debug):
                 if (dsplus < 0.): ds = dsminn
                 if (dsminn < 0.): ds = dsplus
                 if (dsminn*dsplus > 0.): ds = np.min([dsplus, dsminn])
-
+            #t1 = time()
+            #print (t1-t0)*1000.
 
             # Find "vfac", the velocity line profile factor
             # Number of splines nspline=los_delta_v/local_line_width
             # Number of averaging steps naver=local_delta_v/local_line_width
-
             if (sim.model.grid['nmol'][posn] > eps):
+                #t0 = time()
                 b = sim.model.grid['doppb'][posn]
                 v1 = vfunc(sim, 0., idx, rpos, phi, deltav)
                 v2 = vfunc(sim, ds, idx, rpos, phi, deltav)   
@@ -93,32 +97,29 @@ def photon(sim, idx, debug):
                         vfacsub = np.exp(-(v/b)**2)
                         vfac += vfacsub/naver
                 vfac /= nspline
+                #t1 = time()
 
-                # backwards integrate dI/ds            
-                for iline in range(sim.nline):
-                    jnu = sim.dust[iline,posn]*sim.knu[iline,posn] + vfac*hpip/b*sim.model.grid['nmol'][posn]*sim.pops[sim.mol.lau[iline],posn]*sim.mol.aeinst[iline]
+                # backwards integrate dI/ds      
+                jnu = sim.dust[:,posn]*sim.knu[:,posn] + vfac*hpip/b*sim.model.grid['nmol'][posn]*sim.pops[sim.mol.lau,posn]*sim.mol.aeinst
+                alpha = sim.knu[:,posn] + vfac*hpip/b*sim.model.grid['nmol'][posn]*(sim.pops[sim.mol.lal,posn]*sim.mol.beinstl - sim.pops[sim.mol.lau,posn]*sim.mol.beinstu)
+    
+                snu = jnu/alpha/sim.norm
+                snu[np.abs(alpha) < eps] = 0.
 
-                    alpha = sim.knu[iline,posn] + vfac*hpip/b*sim.model.grid['nmol'][posn]*(sim.pops[sim.mol.lal[iline],posn]*sim.mol.beinstl[iline] - sim.pops[sim.mol.lau[iline],posn]*sim.mol.beinstu[iline])
+                dtau = alpha*ds
+                dtau[dtau < negtaulim] = negtaulim
 
-                    if (np.abs(alpha) < eps):
-                        snu = 0.
-                    else:
-                        snu = jnu/alpha/sim.norm[iline]
-
-                    dtau = alpha*ds
-                    if (dtau < negtaulim): # Limit negative opacity
-                        dtau = negtaulim
-
-                    if not firststep:
-                        sim.phot[iline+2, iphot] += np.exp(-sim.tau[iline])*(1. - np.exp(-dtau))*snu
-                        sim.tau[iline] = sim.tau[iline] + dtau
-                        if (sim.tau[iline] < negtaulim):
-                            sim.tau[iline] = negtaulim
+                if not firststep:
+                    sim.phot[2:, iphot] += np.exp(-sim.tau)*(1. - np.exp(-dtau))*snu
+                    sim.tau += dtau
+                    sim.tau[sim.tau < negtaulim] = negtaulim
 
                 if firststep:
                     sim.phot[0, iphot] = ds
                     sim.phot[1, iphot] = vfac
                     firststep = False
+                #t2 = time()
+                #print (t1-t0)*1000., (t2-t1)*1000.
 
 
             # Update photon position, direction; check if escaped
@@ -135,6 +136,8 @@ def photon(sim, idx, debug):
         if (sim.model.tcmb > 0.):
             for iline in range(sim.nline):
                 sim.phot[iline+2, iphot] += np.exp(-sim.tau[iline])*sim.cmb[iline]
+        #end = time()
+        #print end-start
 
     return
 

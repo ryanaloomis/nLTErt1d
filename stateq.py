@@ -5,6 +5,7 @@ from common import *
 from getjbar import *
 from getmatrix import *
 from scipy.linalg import lu_factor, lu_solve
+from time import time
 
 miniter = 10
 maxiter = 100
@@ -20,6 +21,7 @@ def stateq(sim, idx, debug):
     for iter in range(maxiter):
         # get updated jbar
         if (debug): print('[debug] calling getjbar, iter= ' + str(iter))
+
         getjbar(sim, idx, debug)
 
         newpop = np.zeros(sim.nlev + 1)
@@ -32,15 +34,13 @@ def stateq(sim, idx, debug):
         # solve rate matrix
         newpop = np.linalg.lstsq(ratem, newpop, rcond=None)[0]
 
-        numb = 0
         diff = 0
-        for s in range(sim.nlev):
-            newpop[s] = np.max([newpop[s], eps])
-            oopop[s] = opop[s]
-            sim.pops[s, idx] = newpop[s]
-            if (np.min([newpop[s], opop[s], oopop[s]]) > sim.minpop):
-                numb += 1
-                diff = np.max([np.abs(newpop[s] - opop[s])/newpop[s], np.abs(newpop[s] - oopop[s])/newpop[s], diff])
+        newpop = np.maximum(newpop, eps)
+        oopop = opop
+        opop = sim.pops[:,idx]
+        sim.pops[:,idx] = newpop[:-1] 
+        if np.any((np.minimum(newpop[:-1], oopop) > sim.minpop)):
+            diff = np.max(np.maximum(np.maximum(np.abs(newpop[:-1] - opop)/newpop[:-1], np.abs(newpop[:-1] - oopop)/newpop[:-1]), diff))
 
         if (iter > miniter) and (diff < tol): continue
 

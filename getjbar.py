@@ -2,6 +2,7 @@ import numpy as np
 from simulation import *
 from model import *
 from common import *
+from time import time
 
 def getjbar(sim, idx, debug):
     vsum = 0.
@@ -10,37 +11,25 @@ def getjbar(sim, idx, debug):
     jnu_dust = np.zeros(sim.nline)
     alpha_dust = np.zeros(sim.nline)
 
-    for iline in range(sim.nline):
-        jnu_dust[iline] = sim.dust[iline, idx]*sim.knu[iline, idx]
-        alpha_dust[iline] = sim.knu[iline, idx]
+    jnu_dust = sim.dust[:, idx]*sim.knu[:, idx]
+    alpha_dust = sim.knu[:, idx]
 
-    for iphot in range(sim.nphot[idx]):
-        if (debug): print('[debug] iphot = ' + str(iphot))
+    ds = sim.phot[0]
+    vfac = sim.phot[1]
+    vsum = np.sum(vfac)
 
-        ds = sim.phot[0, iphot]
-        vfac = sim.phot[1, iphot]
+    jnu = jnu_dust[:,np.newaxis] + vfac[np.newaxis,:]/sim.model.grid['doppb'][idx]*hpip*sim.model.grid['nmol'][idx]*(sim.pops[sim.mol.lau, idx])[:,np.newaxis]*sim.mol.aeinst[:,np.newaxis]
+    alpha = alpha_dust[:,np.newaxis] + vfac[np.newaxis,:]/sim.model.grid['doppb'][idx]*hpip*sim.model.grid['nmol'][idx]*((sim.pops[sim.mol.lal,idx])[:,np.newaxis]*sim.mol.beinstl[:,np.newaxis] - (sim.pops[sim.mol.lau,idx])[:,np.newaxis]*sim.mol.beinstu[:,np.newaxis])
 
-        for iline in range(sim.nline):
-            jnu = jnu_dust[iline] + vfac/sim.model.grid['doppb'][idx]*hpip*sim.model.grid['nmol'][idx]*sim.pops[sim.mol.lau[iline],idx]*sim.mol.aeinst[iline]
+    snu = jnu/alpha/sim.norm[:,np.newaxis]
+    snu[np.abs(alpha) < eps] = 0.
 
-            alpha = alpha_dust[iline] + vfac/sim.model.grid['doppb'][idx]*hpip*sim.model.grid['nmol'][idx]*(sim.pops[sim.mol.lal[iline],idx]*sim.mol.beinstl[iline] - sim.pops[sim.mol.lau[iline],idx]*sim.mol.beinstu[iline])
+    tau = alpha*ds[np.newaxis,:]
+    tau[tau < negtaulim] = negtaulim
 
-            if (np.abs(alpha) < eps):
-                snu = 0.
-            else:
-                snu = jnu/alpha/sim.norm[iline]
-
-            tau = alpha*ds
-            if (tau < negtaulim): # Limit negative opacity
-                tau = negtaulim
-            
-            # Add intensity along line segment
-            sim.mol.jbar[iline] += vfac*(np.exp(-tau)*sim.phot[iline+2, iphot] + (1 - np.exp(-tau))*snu)
-
-        vsum += vfac
+    sim.mol.jbar = np.sum(vfac[np.newaxis,:]*(np.exp(-tau)*sim.phot[2:,:] + (1 - np.exp(-tau))*snu), axis=1)
 
     if (vsum > 0.):
-        for iline in range(sim.nline):
-            sim.mol.jbar[iline] *= sim.norm[iline]/vsum # Normalize and scale by norm and vsum
+        sim.mol.jbar *= sim.norm/vsum # Normalize and scale by norm and vsum
 
     return

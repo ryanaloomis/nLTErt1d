@@ -7,6 +7,7 @@ from kappa import generate_kappa
 from photon_1d import photon
 from stateq import *
 from blowpops import *
+from time import time
 
 class simulation:
     def __init__(self, source, outfile, molfile, goalsnr, nphot, kappa=None, tnorm=2.735, velocity='grid', seed=1971, minpop=1e-4, fixset=1.e-6, debug=False):
@@ -24,6 +25,7 @@ class simulation:
         self.fixset = fixset
         self.debug = debug
 
+        t0 = time()
         # Read in the source model
         if self.debug: print('[debug] reading in source model')
         self.model = model(self.source, self.debug)
@@ -81,7 +83,8 @@ class simulation:
         self.fixseed = self.seed
         self.tau = np.zeros(self.nline)
 
-
+        t1 = time()
+        print "model set-up time = " + str(t1-t0)
 
     def calc_pops(self):
         print('AMC')
@@ -91,6 +94,7 @@ class simulation:
         percent = 0
         done = False                        # have we finished converging yet?
 
+        mycount = 0
         while done==False:
             conv = 0
             exceed = 0
@@ -113,14 +117,23 @@ class simulation:
 
                     if (self.model.grid['nh2'][idx] >= eps):
                         if self.debug: print('[debug] calling photon for cell ' + str(idx))
+                        t0 = time()
                         photon(self, idx, self.debug)
+                        t1 = time()
+                        print "photon time = " + str(t1-t0)
 
                         if self.debug: print('[debug] calling stateq for cell ' + str(idx))
+                        t0 = time()
                         self.staterr = stateq(self, idx, self.debug)
-
+                        mycount += 1
+                        if not(mycount%10):
+                            print mycount
+                        t1 = time()
+                        print "stateq time = " + str(t1-t0)
 
                 if self.debug: print('[debug] calculating s/n for cell ' + str(idx))
 
+                t0 = time()
                 snr = self.fixset                # Determine snr in cell
                 var = 0.
                 totphot += self.nphot[idx]
@@ -146,6 +159,8 @@ class simulation:
                         self.nphot[idx] = newphot
 
                 totphot2 += self.nphot[idx]
+                t1 = time()
+                #print "rest of time = " + str(t1-t0)
 
             # Report any convergence problems if they occurred
             if (self.staterr > 0.): print('### WARNING: stateq did not converge everywhere (err=' + str(self.staterr) + ')')
