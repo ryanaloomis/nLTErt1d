@@ -6,6 +6,7 @@ from numerical import *
 from kappa import generate_kappa
 from photon_1d import photon
 from stateq import *
+from blowpops import *
 
 class simulation:
     def __init__(self, source, outfile, molfile, goalsnr, nphot, kappa=None, tnorm=2.735, velocity='grid', seed=1971, minpop=1e-4, fixset=1.e-6, debug=False):
@@ -17,6 +18,7 @@ class simulation:
         # not setting nphot yet, setting later as array w/ size ncell
         self.kappa_params = kappa
         self.tnorm = tnorm
+        self.velocity = velocity
         self.seed = seed
         self.minpop = minpop
         self.fixset = fixset
@@ -28,13 +30,13 @@ class simulation:
         self.ncell = self.model.ncell
 
         # Check to make sure that there's a valid velocity field
-        if velocity == 'grid':
+        if self.velocity == 'grid':
             if 'vr' not in self.model.grid:
                 raise Exception('ERROR: Velicity mode specified as grid, but no valid velocity field included in model.')
         else:
             try:
                 # Read in user velocity function and override the grid lookup function
-                velo_file = velocity
+                velo_file = self.velocity
                 from velo_file import velo as user_velo
                 self.model.velo = user_velo
             except:
@@ -77,7 +79,6 @@ class simulation:
         self.nphot = np.full(self.ncell, nphot)         # Set nphot to initial number
         self.niter = self.ncell                           # Estimated crossing time
         self.fixseed = self.seed
-        self.phot = np.zeros((self.nline+2, nphot))
         self.tau = np.zeros(self.nline)
 
 
@@ -91,7 +92,7 @@ class simulation:
         done = False                        # have we finished converging yet?
 
         while done==False:
-            conv = 0.
+            conv = 0
             exceed = 0
             totphot = 0
             totphot2 = 0
@@ -99,10 +100,12 @@ class simulation:
             self.staterr = 0.
 
             for idx in range(self.ncell):        # Loop over all cells
+                self.phot = np.zeros((self.nline+2, self.nphot[idx]))
                 for iternum in range(3):    # always do sets of 3 iterations to build snr
 
-                    if (stage == 1):        # Stage 1=FIXSET -> re-initialize ran1 each time
-                        ran1(reset=True)
+                    if (stage == 1):        # Stage 1=FIXSET -> re-initialize random generator each time
+                        #ran1(reset=True)
+                        np.random.seed(self.fixseed)
                     
                     for ilev in range(self.nlev):
                         self.oopops[ilev, idx] = self.opops[ilev, idx]
@@ -131,9 +134,9 @@ class simulation:
                 minsnr = np.min([snr, minsnr])
 
                 if (stage == 1):
-                    if (snr >= 1./self.fixset): conv += 1.    # Stage 1=FIXSET 
+                    if (snr >= 1./self.fixset): conv += 1    # Stage 1=FIXSET 
                 else:
-                    if (snr >= self.goalsnr): conv += 1.
+                    if (snr >= self.goalsnr): conv += 1
                     else:
                         newphot = self.nphot[idx]*2          # Double photons if cell not converged
                         if (newphot >= max_phot):
@@ -145,12 +148,11 @@ class simulation:
                 totphot2 += self.nphot[idx]
 
             # Report any convergence problems if they occurred
-
             if (self.staterr > 0.): print('### WARNING: stateq did not converge everywhere (err=' + str(self.staterr) + ')')
 
             if (stage == 1):
-                percent = conv/self.ncell*100.
-                #blowpops(self.outfile, self.molfile, self.snrgoal, minsnr, percent, stage, self.fixset, self.trace) # TODO
+                percent = float(conv)/self.ncell*100.
+                blowpops(self.outfile, self, snr, percent)
                 print('AMC: FIXSET fractional error ' + str(1./minsnr) + ', ' + str(percent) + '% converged')
                 if (conv == self.ncell):
                     stage = 2
@@ -165,9 +167,9 @@ class simulation:
                 if (conv == self.ncell): percent = 100.
                 else:
                     if (exceed < self.ncell):
-                        percent = conv/self.ncell*100.
-                        blowpops(self.outfile, self.molfile, self.snrgoal, minsnr, percent, stage, self.fixset, self.trace) # TODO
-                        print('AMC: ' + str(minsnr) + '  |  ' + str(percent) + '% |  ' + str(totphot) + '  |  ' + totphot2)
+                        percent = float(conv)/self.ncell*100.
+                        blowpops(self.outfile, self, snr, percent)
+                        print('AMC: ' + str(minsnr) + '  |  ' + str(percent) + '% |  ' + str(totphot) + '  |  ' + str(totphot2))
                         continue                        # Next iteration
                     else:
                         print('### WARNING: Insufficient photons. Not converged.')
@@ -175,7 +177,6 @@ class simulation:
             done = True
 
         # Convergence reached (or bailed out)
-
         print('AMC: ' + str(minsnr) + '  |  ' + str(percent) + '% |  ' + str(totphot) + '  |  converged')
         print('AMC:')
 

@@ -1,143 +1,39 @@
-# TODO write function to output levels
+from __future__ import print_function
+import numpy as np
+from common import *
+
+#     Output routine of AMC. Writes populations of all levels in all
+#     grid points to file.
 
 
-      SUBROUTINE blowpops(outfile,molfile,goal,snr,percent,stage,fixset
-     $  ,trace)
+def blowpops(outfile, sim, snr, percent):
+    # Open file (overwrites old file)
+    popfile = open(outfile, 'w')
 
-c (c) Michiel Hogerheijde / Floris van der Tak 2000
-c     michiel@strw.leidenuniv.nl, vdtak@sron.nl
-c     http://www.sron.rug.nl/~vdtak/ratran
-c
-c     This file is part of the 'ratran' molecular excitation and
-c     radiative transfer code. The one-dimensional version of this code
-c     is publicly available; the two-dimensional version is available on
-c     collaborative basis. Although the code has been thoroughly tested,
-c     the authors do not claim that it is free of errors or that it gives
-c     correct results in all situations. Any publication making use of
-c     this code should include a reference to Hogerheijde & van der Tak,
-c     2000, A&A, 362, 697.
+    # Write out the header
+    popfile.write("#AMC: version 0.1.0 / ral / feb2019\n")
+    popfile.write("#AMC: output file\n")
+    popfile.write("#AMC: fixset convergence limit = " + str(sim.fixset) + "\n")
+    popfile.write("#AMC: convergence reached = " + str(1./snr) + "\n")
+    popfile.write("#AMC: requested snr = " + str(sim.goalsnr) + "\n")
+    popfile.write("#AMC: minimum snr = " + str(snr) + "\n")
+    popfile.write("#AMC: " + str(percent) + "% converged\n")
+    popfile.write("rmax = " + str(sim.model.rmax) + "\n")
+    popfile.write("ncell = " + str(sim.model.ncell) + "\n")
+    popfile.write("tcmb = " + str(sim.model.tcmb) + "\n")
+    popfile.write("gas:dust = " + str(sim.model.gas2dust) + "\n")
+    popfile.write("columns = id,ra,rb,nh,tk,nm,vr,db,td,lp\n")
+    popfile.write("molfile = " + str(sim.molfile) + "\n")
+    popfile.write("velo = " + sim.velocity + "\n")
+    popfile.write("kappa = " + sim.kappa_params + "\n")
+    popfile.write("@\n")
 
-c     For revision history see http://www.sron.rug.nl/~vdtak/ratran/
+    # Write grid, reverting to 'natural' units
+    for idx in range(sim.ncell):
+        print_vals = [idx+1, sim.model.grid["ra"][idx], sim.model.grid["rb"][idx], sim.model.grid["nh2"][idx]/1.e6, sim.model.grid["tkin"][idx], sim.model.grid["nmol"][idx]/1.e6, sim.model.grid["vr"][idx]/1.e3, np.sqrt((sim.model.grid["doppb"][idx])**2-2.*kboltz/(sim.mol.molweight*amu)*sim.model.grid["tkin"][idx])/1.e3, sim.model.grid["tdust"][idx]]
+        print_vals.extend(sim.pops[:,idx])
+        printstr = ' '.join(['{0:.5e}'.format(val) for val in print_vals])
+        print(printstr, file=popfile)
+    popfile.close()
 
-c     Output routine of AMC. Writes populations of all levels in all
-c     grid points to file. Unit 13 is the output file.
-
-      IMPLICIT NONE
-      INCLUDE 'amccommon.inc'
-      INTEGER id,j,length,stage
-      DOUBLE PRECISION goal,snr,percent,fixset
-      CHARACTER*80 outfile,molfile
-      CHARACTER*42 fmt
-      EXTERNAL length
-      INTEGER count
-      SAVE count
-      CHARACTER*80 out2
-      LOGICAL trace
-      LOGICAL debug
-      PARAMETER(debug=.false.)
-
-c     id,j:    counters
-c     length:  returns length of a string
-c     goal:    requested s/n
-c     snr:     acquired minimum s/n
-c     percent: % cells exceeding goal
-c     molfile: full path + file name molecular data
-c     outfile: output file name
-c     fmt:     helps in defining format
-c     count:   keeps track of intermediate output files
-c     out2:    intermediate output file name, defaults to prelim_nnn.pop
-c     trace:   leave convergence history or not?
-c     debug: turns debugging output on/off
-
-      count=count+1
-      if (((percent.lt.100.d0).or.(stage.eq.1)).and.(trace)) then
-        write(out2,'(A,A1,I6.6,A4)') 
-     $    outfile(1:length(outfile)),'_',count,'.his'
-        open(unit=13,file=out2,status='unknown',err=911)
-      else
-        open(unit=13,file=outfile,status='unknown',err=911)
-      endif
-      if (debug) print*,'[debug] opened output file'
-
-c     Write header
-
-      write(13,'(A)') '#AMC: output file'
-      if (stage.eq.1) then
-        write(13,'(A,1p,E10.3)') '#AMC: fixset convergence limit='
-     $    ,fixset
-        write(13,'(A,1p,E10.3)') '#AMC: convergence reached=',1./snr
-      else
-        write(13,'(A,1p,E10.3)') '#AMC: requested snr=',goal
-        write(13,'(A,1p,E10.3)') '#AMC: minimum snr=',snr
-      endif
-      write(13,'(A,F5.1,A)') '#AMC: ',percent,'% converged'
-
-      write(13,'(A,1p,E12.6)') 'rmax=',rmax
-      if (zmax.gt.0.) write(13,'(A,1p,E12.6)') 'zmax=',zmax
-      write(fmt,'(A)') '(A,I3)'
-      write(13,'(A,1p,I10.10)') 'ncell=',ncell
-      write(13,'(A,1p,E9.3)') 'tcmb=',tcmb
-      if (gas2dust.gt.0.d0) 
-     $  write(13,'(A,1p,E9.3)') 'gas:dust=',gas2dust
-      if (zmax.gt.0.d0) then
-        write(13,'(A)') 
-     $    'columns=id,ra,rb,za,zb,nh,tk,nm,vr,vz,va,db,td,lp'
-      else
-        write(13,'(A)') 
-     $    'columns=id,ra,rb,nh,tk,nm,vr,db,td,lp'
-      endif
-      write(13,'(A,A)') 'molfile=',molfile(1:length(molfile))
-
-      write(13,'(A)') '@'
-      if (debug) print*,'[debug] wrote header'
-
-
-c     Write grid, reverting to 'natural' units
-
-      if (zmax.gt.0.d0) then
-        do id=1,ncell
-      if (debug) print*,'[debug] writing cell ',id
-          write(fmt,'(''(I6,X,1p,12(E15.6,1X),'',I3,''(E15.6,1X))'')')
-     $      nlev
-          if ((doppb(id)**2.d0-2.d0*kboltz/amass*tkin(id)).lt.eps) then
-            write(13,fmt)
-     $        id,ra(id),rb(id),za(id),zb(id),nh2(id)/1.d6,tkin(id),
-     $        nmol(id)/1.d6,vr(id)/1.d3,vz(id)/1.d3,va(id)/1.d3,
-     $        0.d0,tdust(id),(pops(j,id),j=1,nlev)
-          else
-            write(13,fmt)
-     $        id,ra(id),rb(id),za(id),zb(id),nh2(id)/1.d6,tkin(id),
-     $        nmol(id)/1.d6,vr(id)/1.d3,vz(id)/1.d3,va(id)/1.d3,
-     $        dsqrt(doppb(id)**2.d0-2.d0*kboltz/amass*tkin(id))/1.d3,
-     $        tdust(id),(pops(j,id),j=1,nlev)
-          endif
-        enddo
-      else
-        do id=1,ncell
-      if (debug) print*,'[debug] writing cell ',id
-          write(fmt,'(''(I6,X,1p,8(E15.6,1X),'',I3,''(E15.6,1X))'')')
-     $      nlev
-          if ((doppb(id)**2.d0-2.d0*kboltz/amass*tkin(id)).lt.eps) then
-          write(13,fmt)
-     $      id,ra(id),rb(id),nh2(id)/1.d6,tkin(id),
-     $      nmol(id)/1.d6,vr(id)/1.d3,
-     $      0.d0,tdust(id),(pops(j,id),j=1,nlev)
-          else
-          write(13,fmt)
-     $      id,ra(id),rb(id),nh2(id)/1.d6,tkin(id),
-     $      nmol(id)/1.d6,vr(id)/1.d3,
-     $      dsqrt(doppb(id)**2.d0-2.d0*kboltz/amass*tkin(id))/1.d3,
-     $      tdust(id),(pops(j,id),j=1,nlev)
-          endif
-        enddo
-      endif
-
-
-      close(13)                 ! close output file
-
-
-      RETURN
-
-
-  911 STOP 'AMC: error opening output file...abort'
-      END
+    return

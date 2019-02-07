@@ -19,18 +19,20 @@ def photon(sim, idx, debug):
         # homogeneously distributed over +/-2.15 * local Doppler b from
         # local velocity.
 
-        dummy = ran1()
+        #dummy = ran1()
+        dummy = np.random.random()        
         if (sim.model.grid['ra'][idx] > 0.):
             rpos = sim.model.grid['ra'][idx]*(1. + dummy*((sim.model.grid['rb'][idx]/sim.model.grid['ra'][idx])**3 - 1.))**(1./3.)
         else:
             rpos = sim.model.grid['rb'][idx]*dummy**(1./3.)
 
-        dummy = 2.*ran1() - 1.
+        #dummy = 2.*ran1() - 1.
+        dummy = 2.*np.random.random() - 1.
         phi = np.arcsin(dummy) + np.pi/2.
 
         if debug: print('[debug] calling velo, iphot = ' + str(iphot))
         vel = sim.model.velo(idx, rpos)
-        deltav = (ran1() - 0.5)*4.3*sim.model.grid['doppb'][idx] + np.cos(phi)*vel[0]
+        deltav = (np.random.random() - 0.5)*4.3*sim.model.grid['doppb'][idx] + np.cos(phi)*vel[0]
 
         # Propagate to edge of cloud by moving from cell edge to cell edge.
         # After the first step (i.e., after moving to the edge of cell id),
