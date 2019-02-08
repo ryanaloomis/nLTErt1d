@@ -1,17 +1,55 @@
 import numpy as np
 from model import model
 from molecule import molecule
-from common import *
-from numerical import *
+from common import eps, max_phot
+from numerical import planck
 from kappa import generate_kappa
 from photon_1d import photon
-from stateq import *
-from blowpops import *
+from stateq import stateq
+from blowpops import blowpops
 from time import time
+import scipy.constants as sc
+
 
 class simulation:
-    def __init__(self, source, outfile, molfile, goalsnr, nphot, kappa=None, tnorm=2.735, velocity='grid', seed=1971, minpop=1e-4, fixset=1.e-6, debug=False):
-        # Init user specified parameters
+    """The main simulation class."""
+
+    def __init__(self, source, outfile, molfile, goalsnr, nphot, kappa=None,
+                 tnorm=2.735, velocity='grid', seed=1971, minpop=1e-4,
+                 fixset=1.e-6, debug=False):
+        """
+        Initlize a simulation.
+
+        Args:
+            source (str): Model file.
+            outfile (str): File to write population levels to.
+            molfile (str): Molecular data file in the LAMDA format.
+            goalsnr (float): Goal signal-to-noise ratio of the run.
+            nphot (float): Number of photons to use in the radiative transfer.
+            kappa (optional[str]): A string decribing the dust parameters. For
+                the use of Ossenkopf & Henning (1994) opacities it must take
+                the form:
+
+                    kappa_params = 'jena, TYPE, COAG'
+
+                where TYPE must be 'bare', 'thin' or 'thick' and COAG must be
+                'no', 'e5', 'e6', 'e7' or 'e8'. Otherwise a power law profile
+                can be included. Alternatively, a simple power law can be used
+                where the parameters are given by:
+
+                    kappa_params = 'powerlaw, freq0, kappa0, beta'
+
+                where freq0 is in [Hz], kappa0 in [cm^2/g], and beta is the
+                frequency index. If nothing is given, we assume no opacity.
+            tnorm (optional[float]): Background temperature in [K]. Default is
+                the CMB at 2.735K.
+            velo (optional[str]): Type of velocity structure to use.
+            seed (optional[int]): Seed for the random number generators.
+            minpop (optional[float]): Minimum population for each energy level.
+            fixset (optional [float]): The smallest number to be counted.
+            debug (optional[bool]): Pring debugging messages.
+        """
+
         self.source = source
         self.outfile = outfile
         self.molfile = molfile
@@ -27,25 +65,29 @@ class simulation:
 
         t0 = time()
         # Read in the source model
-        if self.debug: print('[debug] reading in source model')
+        if self.debug:
+            print('[debug] reading in source model')
         self.model = model(self.source, self.debug)
         self.ncell = self.model.ncell
 
         # Check to make sure that there's a valid velocity field
         if self.velocity == 'grid':
             if 'vr' not in self.model.grid:
-                raise Exception('ERROR: Velicity mode specified as grid, but no valid velocity field included in model.')
+                raise Exception('Velicity mode specified as grid but no valid '
+                                'velocity field included in model.')
         else:
             try:
-                # Read in user velocity function and override the grid lookup function
+                # User velocity function override the grid lookup function.
                 velo_file = self.velocity
                 from velo_file import velo as user_velo
                 self.model.velo = user_velo
             except:
-                raise Exception('ERROR: Could not read velocity function from file ' + velo_file)
+                raise Exception('ERROR: Could not read velocity function from'
+                                'file ' + velo_file)
 
         # Read in the molfile
-        if self.debug: print('[debug] reading molecular data file')
+        if self.debug:
+            print('[debug] reading molecular data file')
         self.mol = molecule(self, self.molfile, self.debug)
         self.nlev = self.mol.nlev
         self.nline = self.mol.nline
@@ -61,7 +103,8 @@ class simulation:
         for iline in range(self.nline):
             self.norm[iline] = planck(self.mol.freq[0], tnorm)
             if (self.model.tcmb > 0.):
-                self.cmb[iline] = planck(self.mol.freq[iline], self.model.tcmb)/self.norm[iline]
+                self.cmb[iline] = planck(self.mol.freq[iline],
+                                         self.model.tcmb) / self.norm[iline]
 
         # Parse kappa parameters and generate the kappa function
         self.kappa = generate_kappa(self.kappa_params)
@@ -71,15 +114,16 @@ class simulation:
         self.dust = np.zeros((self.nline, self.ncell))
         for iline in range(self.nline):
             for idx in range(self.ncell):
-                self.knu[iline, idx] = self.kappa(idx, self.mol.freq[iline])*2.4*amu/self.model.gas2dust*self.model.grid['nh2'][idx]
-                self.dust[iline,idx] = planck(self.mol.freq[iline],self.model.grid['tdust'][idx])
+                self.knu[iline, idx] = self.kappa(idx, self.mol.freq[iline]) * 2.4 * sc.m_p / self.model.gas2dust*self.model.grid['nh2'][idx]
+                self.dust[iline, idx] = planck(self.mol.freq[iline],
+                                               self.model.grid['tdust'][idx])
 
         # Set up the Monte Carlo simulation
         self.pops = np.zeros((self.nlev, self.ncell))
         self.opops = np.zeros((self.nlev, self.ncell))
         self.oopops = np.zeros((self.nlev, self.ncell))
-        self.nphot = np.full(self.ncell, nphot)         # Set nphot to initial number
-        self.niter = self.ncell                           # Estimated crossing time
+        self.nphot = np.full(self.ncell, nphot)  # Set nphot to initial number.
+        self.niter = self.ncell  # Estimated crossing time.
         self.fixseed = self.seed
         self.tau = np.zeros(self.nline)
 
@@ -88,87 +132,102 @@ class simulation:
 
     def calc_pops(self):
         print('AMC')
-        print('AMC: Starting with FIXSET convergence; limit=' + str(self.fixset))
+        print('AMC: Starting with FIXSET convergence;'
+              'limit=' + str(self.fixset))
 
-        stage = 1                           # 1=initial phase with fixed photon paths=FIXSET
+        stage = 1  # 1 = initial phase with fixed photon paths=FIXSET.
         percent = 0
-        done = False                        # have we finished converging yet?
+        done = False  # have we finished converging yet?
 
         mycount = 0
-        while done==False:
+        while not done:
             conv = 0
             exceed = 0
             totphot = 0
             totphot2 = 0
-            minsnr=1./self.fixset                 # fixset is smallest number to be counted
+            minsnr = 1. / self.fixset  # smallest number to be counted
             self.staterr = 0.
 
-            for idx in range(self.ncell):        # Loop over all cells
+            # Loop over all cells.
+            for idx in range(self.ncell):
                 self.phot = np.zeros((self.nline+2, self.nphot[idx]))
-                for iternum in range(3):    # always do sets of 3 iterations to build snr
 
-                    if (stage == 1):        # Stage 1=FIXSET -> re-initialize random generator each time
-                        #ran1(reset=True)
+                # Always do sets of three to build SNR.
+                for iternum in range(3):
+
+                    # Stage 1=FIXSET > re-initialize random generator each time
+                    if (stage == 1):
+                        # ran1(reset=True)
                         np.random.seed(self.fixseed)
-                    
+
                     for ilev in range(self.nlev):
                         self.oopops[ilev, idx] = self.opops[ilev, idx]
                         self.opops[ilev, idx] = self.pops[ilev, idx]
 
                     if (self.model.grid['nh2'][idx] >= eps):
-                        if self.debug: print('[debug] calling photon for cell ' + str(idx))
+                        if self.debug:
+                            print('[debug] calling photon for cell', str(idx))
                         t0 = time()
                         photon(self, idx, self.debug)
                         t1 = time()
-                        print "photon time = " + str(t1-t0)
+                        print("photon time = " + str(t1-t0))
 
-                        if self.debug: print('[debug] calling stateq for cell ' + str(idx))
+                        if self.debug:
+                            print('[debug] calling stateq for cell', str(idx))
                         t0 = time()
                         self.staterr = stateq(self, idx, self.debug)
                         mycount += 1
-                        if not(mycount%10):
+                        if not(mycount % 10):
                             print mycount
                         t1 = time()
                         print "stateq time = " + str(t1-t0)
 
-                if self.debug: print('[debug] calculating s/n for cell ' + str(idx))
+                if self.debug:
+                    print('[debug] calculating s/n for cell', str(idx))
 
                 t0 = time()
-                snr = self.fixset                # Determine snr in cell
+                # Determine snr in cell
+                snr = self.fixset
                 var = 0.
                 totphot += self.nphot[idx]
 
                 for ilev in range(self.nlev):
-                    self.avepops = (self.pops[ilev, idx] + self.opops[ilev, idx] + self.oopops[ilev, idx])/3.
-                    if (self.avepops >= self.minpop):
+                    self.avepops = self.pops[ilev, idx] + self.opops[ilev, idx]
+                    self.avepops = (self.avepops + self.oopops[ilev, idx]) / 3.
+                    if self.avepops >= self.minpop:
                         var = np.max([np.abs(self.pops[ilev, idx] - self.avepops)/self.avepops, np.abs(self.opops[ilev, idx] - self.avepops)/self.avepops, np.abs(self.oopops[ilev, idx] - self.avepops)/self.avepops])
                         snr = np.max([snr, var])
                 snr = 1./snr
                 minsnr = np.min([snr, minsnr])
 
                 if (stage == 1):
-                    if (snr >= 1./self.fixset): conv += 1    # Stage 1=FIXSET 
+                    if (snr >= 1./self.fixset):
+                        conv += 1    # Stage 1=FIXSET
                 else:
-                    if (snr >= self.goalsnr): conv += 1
+                    if (snr >= self.goalsnr):
+                        conv += 1
                     else:
-                        newphot = self.nphot[idx]*2          # Double photons if cell not converged
+                        # Double photons if cell not converged.
+                        newphot = self.nphot[idx]*2
                         if (newphot >= max_phot):
                             newphot = max_phot
                             exceed += 1
-                            print('AMC: *** Limiting nphot in cell ' + str(idx))
+                            print('AMC: *** Limiting nphot in cell', str(idx))
                         self.nphot[idx] = newphot
 
                 totphot2 += self.nphot[idx]
                 t1 = time()
-                #print "rest of time = " + str(t1-t0)
 
             # Report any convergence problems if they occurred
-            if (self.staterr > 0.): print('### WARNING: stateq did not converge everywhere (err=' + str(self.staterr) + ')')
+            if (self.staterr > 0.):
+                print('### WARNING: stateq did not converge everywhere'
+                      '(err=' + str(self.staterr) + ')')
 
             if (stage == 1):
                 percent = float(conv)/self.ncell*100.
                 blowpops(self.outfile, self, snr, percent)
-                print('AMC: FIXSET fractional error ' + str(1./minsnr) + ', ' + str(percent) + '% converged')
+                print('AMC: FIXSET fractional error', str(1./minsnr), ',',
+                      str(percent), '% converged')
                 if (conv == self.ncell):
                     stage = 2
                     print('AMC')
@@ -176,18 +235,22 @@ class simulation:
                     print('AMC:')
                     print('AMC: minimum S/N  |  converged  |     photons  |  increase to')
                     print('AMC: -------------|-------------|--------------|-------------')
-                continue                                # Next iteration        
+                # Next iteration
+                continue
 
             else:
-                if (conv == self.ncell): percent = 100.
+                if (conv == self.ncell):
+                    percent = 100.
                 else:
                     if (exceed < self.ncell):
                         percent = float(conv)/self.ncell*100.
                         blowpops(self.outfile, self, snr, percent)
                         print('AMC: ' + str(minsnr) + '  |  ' + str(percent) + '% |  ' + str(totphot) + '  |  ' + str(totphot2))
-                        continue                        # Next iteration
+                        # Next iteration
+                        continue
                     else:
-                        print('### WARNING: Insufficient photons. Not converged.')
+                        print('### WARNING: Insufficient photons.'
+                              'Not converged.')
 
             done = True
 
@@ -195,5 +258,6 @@ class simulation:
         print('AMC: ' + str(minsnr) + '  |  ' + str(percent) + '% |  ' + str(totphot) + '  |  converged')
         print('AMC:')
 
-        #blowpops(self.outfile, self.molfile, self.snrgoal, minsnr, percent, stage, self.fixset, self.trace) # TODO
+        # blowpops(self.outfile, self.molfile, self.snrgoal, minsnr, percent,
+        #          stage, self.fixset, self.trace) # TODO
         print('AMC: Written output to ' + str(self.outfile))
