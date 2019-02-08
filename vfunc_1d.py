@@ -3,7 +3,6 @@ from simulation import *
 from model import *
 from common import *
 
-
 def vfunc(sim, s, idx, rpos, phi, vphot):
     # Get direction and position at location s along l.o.s. 
     psis = np.arctan2(s*np.sin(phi), rpos + s*np.cos(phi))
