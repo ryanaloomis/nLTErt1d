@@ -21,8 +21,7 @@ def vfunc(v, s, rpos, phi, vphot):
 
 
 @jit(nopython=True)
-def photon(ra, rb, nmol, doppb, vel_grid, lau, lal, aeinst, beinstu, beinstl, tcmb, ncell, nline, pops, dust, knu, norm, cmb, nphot, idx):
-    phot = np.zeros((nline+2, nphot))
+def photon(phot, ra, rb, nmol, doppb, vel_grid, lau, lal, aeinst, beinstu, beinstl, tcmb, ncell, nline, pops, dust, knu, norm, cmb, nphot, idx):
     for iphot in range(nphot):
         tau = np.zeros(nline)
         posn = idx
