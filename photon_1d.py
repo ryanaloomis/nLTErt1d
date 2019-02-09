@@ -21,8 +21,11 @@ def vfunc(v, s, rpos, phi, vphot):
 
 
 @jit(nopython=True)
-def photon(fixseed, phot, ra, rb, nmol, doppb, vel_grid, lau, lal, aeinst, beinstu, beinstl, tcmb, ncell, nline, pops, dust, knu, norm, cmb, nphot, idx):
-    np.random.seed(fixseed)
+def photon(fixseed, stage, ra, rb, nmol, doppb, vel_grid, lau, lal, aeinst, beinstu, beinstl, tcmb, ncell, nline, pops, dust, knu, norm, cmb, nphot, idx):
+    phot = np.zeros((nline+2, nphot))
+    if stage ==1:
+        np.random.seed(fixseed)
+    
     for iphot in range(nphot):
         tau = np.zeros(nline)
         posn = idx
