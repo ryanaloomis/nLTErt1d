@@ -1,12 +1,19 @@
 from __future__ import print_function
 import numpy as np
-from common import *
-
-#     Output routine of AMC. Writes populations of all levels in all
-#     grid points to file.
+import scipy.constants as sc
 
 
 def blowpops(outfile, sim, snr, percent):
+    """
+    Writes populations of all levels in all grid points to file.
+
+    Args:
+        outfile (str): Path of file to write to.
+        sim (model instance): Simulation instance.
+        snr (float): Minimum signal-to-noise achieved.
+        percent (float): Convergence percentage.
+    """
+
     # Open file (overwrites old file)
     popfile = open(outfile, 'w')
 
@@ -28,10 +35,24 @@ def blowpops(outfile, sim, snr, percent):
     popfile.write("kappa = " + sim.kappa_params + "\n")
     popfile.write("@\n")
 
-    # Write grid, reverting to 'natural' units
+    # Write grid, reverting to 'natural' units.
     for idx in range(sim.ncell):
-        print_vals = [idx+1, sim.model.grid["ra"][idx], sim.model.grid["rb"][idx], sim.model.grid["nh2"][idx]/1.e6, sim.model.grid["tkin"][idx], sim.model.grid["nmol"][idx]/1.e6, sim.model.grid["vr"][idx]/1.e3, np.sqrt((sim.model.grid["doppb"][idx])**2-2.*kboltz/(sim.mol.molweight*amu)*sim.model.grid["tkin"][idx])/1.e3, sim.model.grid["tdust"][idx]]
-        print_vals.extend(sim.pops[:,idx])
+
+        # I _think_ this is what this parameter is.
+        v_turb = 2. * sc.k * sim.model.grid["tkin"][idx]
+        v_turb /= sim.mol.molweight * sc.m_p
+        v_turb = np.sqrt(sim.model.grid["doppb"][idx]**2 - v_turb) / 1.0e3,
+
+        print_vals = [idx+1,                                # Cell number.
+                      sim.model.grid["ra"][idx],            # ?
+                      sim.model.grid["rb"][idx],            # ?
+                      sim.model.grid["nh2"][idx] / 1.0e6,   # Number density.
+                      sim.model.grid["tkin"][idx],          # Temperature.
+                      sim.model.grid["nmol"][idx] / 1.0e6,  # Column density.
+                      sim.model.grid["vr"][idx] / 1.0e3,    # Velocity.
+                      v_turb,                               # Turbulence.
+                      sim.model.grid["tdust"][idx]]         # Dust temp.
+        print_vals.extend(sim.pops[:, idx])
         printstr = ' '.join(['{0:.5e}'.format(val) for val in print_vals])
         print(printstr, file=popfile)
     popfile.close()
