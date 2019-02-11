@@ -114,24 +114,24 @@ class simulation:
 
                     if (self.model.grid['nh2'][idx] >= eps):
                         if self.debug: print('[debug] calling photon for cell ' + str(idx))
-                        t0 = time()
+                        #t0 = time()
                         vel_grid = np.array([self.model.grid['vr'], self.model.grid['vr'], self.model.grid['vr']]).T # TODO
                         self.phot = photon(self.fixseed, stage, self.model.grid['ra'], self.model.grid['rb'], self.model.grid['nmol'], self.model.grid['doppb'], vel_grid, self.mol.lau, self.mol.lal, self.mol.aeinst, self.mol.beinstu, self.mol.beinstl, self.model.tcmb, self.ncell, self.nline, self.pops, self.dust, self.knu, self.norm, self.cmb, self.nphot[idx], idx)
-                        t1 = time()
+                        #t1 = time()
                         #print "photon time = " + str(t1-t0)
 
                         if self.debug: print('[debug] calling stateq for cell ' + str(idx))
-                        t0 = time()
+                        #t0 = time()
                         self.staterr = stateq(self, idx, self.debug)
-                        mycount += 1
+                        #mycount += 1
                         #if not(mycount%10):
                         #    print mycount
-                        t1 = time()
+                        #t1 = time()
                         #print "stateq time = " + str(t1-t0)
 
                 if self.debug: print('[debug] calculating s/n for cell ' + str(idx))
 
-                t0 = time()
+                #t0 = time()
                 snr = self.fixset                # Determine snr in cell
                 var = 0.
                 totphot += self.nphot[idx]
@@ -157,7 +157,7 @@ class simulation:
                         self.nphot[idx] = newphot
 
                 totphot2 += self.nphot[idx]
-                t1 = time()
+                #t1 = time()
                 #print "rest of time = " + str(t1-t0)
 
             # Report any convergence problems if they occurred
