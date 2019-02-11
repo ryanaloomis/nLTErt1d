@@ -1,8 +1,42 @@
 import numpy as np
-from common import *
+
 
 class model:
-    def __init__(self, modelfile, debug):
+
+    def __init__(self, model_file, model_type='ratran', debug=False):
+        """
+        Initialise the model grid.
+
+        Args:
+            model_file (str): Relative path to the model input file.
+            model_type (optional[str]): Type of model format. Allowed values
+                are currently only 'ratran'.
+            debug (optional[bool]): If True, pring debug messages.
+        """
+
+        model_type = model_type.lower()
+        if model_type == 'ratran':
+            from io import read_RATRAN
+            values = read_RATRAN(model_file)
+        else:
+            raise ValueError("`model_type` must be: 'ratran'.")
+
+        self.rmax = values[0]
+        self.ncell = values[1]
+        self.tcmb = values[2]
+        self.gas2dust = values[3]
+        self.ra = values[4]
+        self.rb = values[5]
+        self.nh2 = values[6]
+        self.ne = values[7]
+        self.nmol = values[8]
+        self.tkin = values[9]
+        self.tdust = values[10]
+        self.telec = values[11]
+        self.doppb = values[12]
+        self.velo = values[13]
+
+        # -- INCLUDE THE OLDER VERSION STUFF BELOW. -- #
         needed_cols = ['id', 'ra', 'rb', 'nh', 'tk', 'nm', 'db']
         entered_grid = False
 
@@ -14,19 +48,22 @@ class model:
         columns = []
         tmp_grid = []
 
-        lines = open(modelfile).read().splitlines()
+        lines = open(model_file).read().splitlines()
 
         for line in lines:
-            if (entered_grid == False):
-                if line[0] == '#': continue
-                if line[0] == '@': 
+            if not entered_grid:
+                if line[0] == '#':
+                    continue
+                if line[0] == '@':
                     entered_grid = True
                     continue
 
-                if debug: print('[debug] read header')
+                if debug:
+                    print('[debug] read header')
 
+                # Search keywords (case sensitive)
                 if '=' in line:
-                    try:                                # Search keywords (case sensitive)
+                    try:
                         keyword = line.split('=')[0]
                         if (keyword == 'rmax'):
                             self.rmax = float(line.split('=')[1])
@@ -53,24 +90,24 @@ class model:
                         continue
 
                 # End of header reached: check on validity
-                
-                if (rmax <= 0.):
+
+                if (self.rmax <= 0.):
                     raise ValueError('AMC: <rmax> missing or 0...abort')
-                if (ncell <= 0.):
+                if (self.ncell <= 0.):
                     raise ValueError('AMC: <ncell> missing or 0...abort')
                 if (len(columns) <= 0):
                     raise ValueError('AMC: <columns> must be defined...abort')
 
                 # Check for missing columns
-                if not(all(col in columns  for col in needed_cols)):
+                if not(all(col in columns for col in needed_cols)):
                     raise ValueError('AMC: a column is missing...abort')
 
-                if (zmax>0):
-                    if ('za' not in columns) or (zb not in columns):
+                if (self.zmax > 0):
+                    if ('za' not in columns) or ('zb' not in columns):
                         raise ValueError('AMC: a column is missing...abort')
 
-                if debug: print('[debug] validated header')
-
+                if debug:
+                    print('[debug] validated header')
 
             else:
                 # Read columns into grid
@@ -78,7 +115,8 @@ class model:
 
         try:
             if len(tmp_grid[0]) != len(columns):
-                raise ValueError('AMC: grid is not correctly sized to match # of columns...abort')
+                raise ValueError('AMC: grid is not correctly sized to'
+                                 'match # of columns...abort')
             tmp_grid = np.array(tmp_grid, dtype='float')
             self.grid = dict(zip(columns, tmp_grid.T))
         except:
@@ -105,9 +143,6 @@ class model:
         if 'va' in columns:
             self.grid['va'] = self.grid.pop('va')*1.e3      # [km/s] -> [m/s]
 
-
-
-
     def velo(self, idx, x):
         v = np.zeros(3)
         if 'vr' in self.grid:
@@ -118,5 +153,3 @@ class model:
             v[2] = self.grid['va'][idx]
 
         return v
-
-

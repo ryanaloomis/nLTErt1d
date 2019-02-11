@@ -1,49 +1,48 @@
 import numpy as np
-from simulation import *
-from model import *
-from common import *
-from getjbar import *
-from getmatrix import *
+from common import eps
+from getjbar import getjbar
+from getmatrix import getmatrix
 from time import time
 from numba import jit
 
-miniter = 10
-maxiter = 100
-tol = 1.e-6
 
 @jit(nopython=True)
 def solvematrix(ratem, newpop):
     result = np.linalg.lstsq(ratem, newpop)
     return result[0]
+  
 
+def stateq(sim, idx, debug=False, miniter=10, maxiter=100, tol=1e0-6):
+    """
+    Iterate for convergence between radiation field and excitation.
 
-def stateq(sim, idx, debug):
-    # Iterate for convergence between radiation field and excitation
+    Args:
+        sim (simulation instance): Instance of the simulation.
+        idx (int): Radial index.
+        debug (optional[bool]): Print debug messages.
+        miniter (optional[int]): Minimum number of iterations.
+        maxiter (optional[int]): Maximum number of iterations.
+        tol (optional[float]): Tolerate of convergence.
+
+    Returns:
+        stater (float): Difference between the values.
+    """
+
     opop = np.zeros(sim.nlev)
     oopop = np.zeros(sim.nlev)
-    
-    jnu_dust = np.zeros(sim.nline)
-    alpha_dust = np.zeros(sim.nline)
 
-    jnu_dust = sim.dust[:, idx]*sim.knu[:, idx]
-    alpha_dust = sim.knu[:, idx]
-
-    ds = sim.phot[0]
-    vfac = sim.phot[1]
-    vsum = np.sum(vfac)
-
+    # Get updated jbar.
     for iter in range(maxiter):
-        # get updated jbar
-        #t0 = time()
-        sim.mol.jbar = getjbar(ds, vfac, vsum, sim.phot, sim.model.grid['nmol'], sim.model.grid['doppb'], sim.mol.lau, sim.mol.lal, sim.mol.aeinst, sim.mol.beinstu, sim.mol.beinstl, sim.nline, sim.pops, jnu_dust, alpha_dust, sim.norm, idx)
-        #t1 = time()
-        #print "getjbar " + str((t1-t0)*100)
+        if debug:
+            print('[debug] calling getjbar, iter= ' + str(iter))
+        getjbar(sim, idx, debug)
 
         newpop = np.zeros(sim.nlev + 1)
         newpop[-1] = 1.
 
         #t0 = time()
         # fill collision rate matrix
+
         if sim.mol.part2id:
             ne = sim.model.grid['ne']
             lcu2 = sim.mol.lcu2
@@ -70,16 +69,17 @@ def stateq(sim, idx, debug):
         diff = 0
         newpop = np.maximum(newpop, eps)
         oopop = opop
-        opop = sim.pops[:,idx]
-        sim.pops[:,idx] = newpop[:-1] 
+        opop = sim.pops[:, idx]
+        sim.pops[:, idx] = newpop[:-1]
         if np.any((np.minimum(newpop[:-1], oopop) > sim.minpop)):
-            diff = np.max(np.maximum(np.maximum(np.abs(newpop[:-1] - opop)/newpop[:-1], np.abs(newpop[:-1] - oopop)/newpop[:-1]), diff))
+            _diff = np.maximum(np.abs(newpop[:-1] - opop) / newpop[:-1],
+                               np.abs(newpop[:-1] - oopop) / newpop[:-1])
+            diff = np.maximum(_diff, diff)
 
-        if (iter > miniter) and (diff < tol): continue
+        if (iter > miniter) and (diff < tol):
+            continue
 
     # If not all converged, save diff in staterr
-    if (diff > tol): sim.staterr = diff
-
+    if diff > tol:
+        sim.staterr = diff
     return sim.staterr
-
-
