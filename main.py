@@ -1,8 +1,6 @@
 # import numpy as np
 # from model import model
 from simulation import simulation
-# from common import *
-
 
 def amc(source, outfile, molfile, goalsnr, nphot, kappa='jena,thin,e5',
         tnorm=2.735, velo='grid', seed=1978, minpop=1e-4, fixset=1e-6,
@@ -48,7 +46,6 @@ def amc(source, outfile, molfile, goalsnr, nphot, kappa='jena,thin,e5',
 
     # Calculate the level populations
     sim.calc_pops()
-
 
 if __name__ == "__main__":
     amc('example.mdl', 'example.pop', 'hco+.dat', 20, 1000)

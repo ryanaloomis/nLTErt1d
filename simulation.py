@@ -125,7 +125,6 @@ class simulation:
         self.nphot = np.full(self.ncell, nphot)  # Set nphot to initial number.
         self.niter = self.ncell  # Estimated crossing time.
         self.fixseed = self.seed
-        self.tau = np.zeros(self.nline)
 
         t1 = time()
         print "model set-up time = " + str(t1-t0)
@@ -139,7 +138,6 @@ class simulation:
         percent = 0
         done = False  # have we finished converging yet?
 
-        mycount = 0
         while not done:
             conv = 0
             exceed = 0
@@ -158,6 +156,7 @@ class simulation:
                     # Stage 1=FIXSET > re-initialize random generator each time
                     if (stage == 1):
                         # ran1(reset=True)
+
                         np.random.seed(self.fixseed)
 
                     for ilev in range(self.nlev):
@@ -176,9 +175,6 @@ class simulation:
                             print('[debug] calling stateq for cell', str(idx))
                         t0 = time()
                         self.staterr = stateq(self, idx, self.debug)
-                        mycount += 1
-                        if not(mycount % 10):
-                            print mycount
                         t1 = time()
                         print "stateq time = " + str(t1-t0)
 

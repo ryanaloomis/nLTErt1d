@@ -1,11 +1,14 @@
 from common import eps, negtaulim
 import scipy.constants as sc
 import numpy as np
-# from simulation import *
-# from model import *
+from simulation import *
+from model import *
+from common import *
+from time import time
+from numba import jit
 
-
-def getjbar(sim, idx, debug=False):
+@jit(nopython=True)
+def getjbar(ds, vfac, vsum, phot, nmol, doppb, lau, lal, aeinst, beinstu, beinstl, nline, pops, jnu_dust, alpha_dust, norm, idx):
     """
     Set the jbar value for the given radial index.
 
@@ -15,50 +18,35 @@ def getjbar(sim, idx, debug=False):
         debug (optional[bool]): If True, print debug messages.
 
     Returns:
-        None
+        jbar
     """
+    jbar = np.zeros(nline)
 
-    # I don't think we need to declare these.
-    # sim.mol.jbar = np.zeros(sim.nline)
-    # jnu_dust = np.zeros(sim.nline)
-    # alpha_dust = np.zeros(sim.nline)
-    # vsum = 0.
+    jnu_precalc = 1./doppb[idx]*hpip*nmol[idx]*(pops[lau, idx])*aeinst
+    alpha_precalc = 1./doppb[idx]*hpip*nmol[idx]*((pops[lal,idx])*beinstl - (pops[lau,idx])*beinstu)
 
-    alpha_dust = sim.knu[:, idx]
-    jnu_dust = sim.dust[:, idx] * alpha_dust
+    for iline in range(nline):
+        jbar_temp = 0.
+        for iphot in range(ds.shape[0]):
+            jnu = jnu_dust[iline] + vfac[iphot]*jnu_precalc[iline]
+            alpha = alpha_dust[iline] + vfac[iphot]*alpha_precalc[iline]
 
-    # Define some variables.
-    ds = sim.phot[0]
-    vfac = sim.phot[1]
-    vsum = np.sum(vfac)
-    hpip = sc.h * sc.c * np.pi**(-1.5) / 4.
+            if (np.abs(alpha) < eps):
+                snu = 0.
+            else:
+                snu = jnu/alpha/norm[iline]
 
-    # Emission.
-    jnu = vfac * hpip * sim.pops[sim.mol.lau, idx] * sim.mol.aeinst
-    jnu = jnu[:, np.newaxis] * sim.model.grid['nmol'][idx]
-    jnu /= sim.model.grid['doppb'][idx]
-    jnu += jnu_dust[:, np.newaxis]
+            tau = alpha*ds[iphot]
+            if (tau < negtaulim): # Limit negative opacity
+                tau = negtaulim
+            
+            # Add intensity along line segment
+            jbar_temp += vfac[iphot]*(np.exp(-tau)*phot[iline+2, iphot] + (1 - np.exp(-tau))*snu)
+        jbar[iline] = jbar_temp
 
-    # Absorption.
-    alpha = 0.0
-
-    # jnu = jnu_dust[:, np.newaxis] + vfac[np.newaxis, :] / sim.model.grid['doppb'][idx] * hpip * sim.model.grid['nmol'][idx] * (sim.pops[sim.mol.lau, idx])[:, np.newaxis] * sim.mol.aeinst[:, np.newaxis]
-    alpha = alpha_dust[:, np.newaxis] + vfac[np.newaxis, :] / sim.model.grid['doppb'][idx] * hpip * sim.model.grid['nmol'][idx]*((sim.pops[sim.mol.lal, idx])[:, np.newaxis]*sim.mol.beinstl[:, np.newaxis] - (sim.pops[sim.mol.lau, idx])[:, np.newaxis]*sim.mol.beinstu[:, np.newaxis])
-
-    # Source function.
-    snu = jnu / alpha / sim.norm[:, np.newaxis]
-    snu[np.abs(alpha) < eps] = 0.
-
-    # Optical depth.
-    tau = alpha * ds[np.newaxis, :]
-    tau[tau < negtaulim] = negtaulim
-
-    sim.mol.jbar = np.exp(-tau) * sim.phot[2:, :] + (1 - np.exp(-tau)) * snu
-    sim.mol.jbar = vfac[np.newaxis, :] * ()
-    sim.mol.jbar = np.sum(sim.mol.jbar, axis=1)
 
     # Normalize and scale by norm and vsum
     if (vsum > 0.):
-        sim.mol.jbar *= sim.norm / vsum
+        jbar *= norm/vsum # Normalize and scale by norm and vsum
 
-    return
+    return jbar

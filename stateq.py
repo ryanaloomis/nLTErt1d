@@ -1,12 +1,16 @@
 import numpy as np
-# from simulation import *
-# from model import *
 from common import eps
 from getjbar import getjbar
 from getmatrix import getmatrix
-# from scipy.linalg import lu_factor, lu_solve
-# from time import time
+from time import time
+from numba import jit
 
+
+@jit(nopython=True)
+def solvematrix(ratem, newpop):
+    result = np.linalg.lstsq(ratem, newpop)
+    return result[0]
+  
 
 def stateq(sim, idx, debug=False, miniter=10, maxiter=100, tol=1e0-6):
     """
@@ -36,13 +40,31 @@ def stateq(sim, idx, debug=False, miniter=10, maxiter=100, tol=1e0-6):
         newpop = np.zeros(sim.nlev + 1)
         newpop[-1] = 1.
 
+        #t0 = time()
         # fill collision rate matrix
-        if (debug):
-            print('[debug] calling getmatrix, iter= ' + str(iter))
-        ratem = getmatrix(sim, idx)
 
+        if sim.mol.part2id:
+            ne = sim.model.grid['ne']
+            lcu2 = sim.mol.lcu2
+            lcl2 = sim.mol.lcl2
+            down2 = sim.mol.down2
+            up2 = sim.mol.up2
+        else:
+            ne = np.zeros(sim.model.grid['nh2'].shape)
+            lcu2 = np.zeros(sim.mol.lcu.shape).astype(int)
+            lcl2 = np.zeros(sim.mol.lcl.shape).astype(int)
+            down2 = np.zeros(sim.mol.down.shape)
+            up2 = np.zeros(sim.mol.up.shape)
+
+        ratem = getmatrix(bool(sim.mol.part2id), sim.phot, sim.model.grid['nh2'], ne, sim.mol.lau, sim.mol.lal, sim.mol.lcu, sim.mol.lcl, lcu2, lcl2, sim.mol.down, sim.mol.up, down2, up2, sim.mol.aeinst, sim.mol.beinstu, sim.mol.beinstl, sim.nline, sim.nlev, sim.mol.jbar, idx)
+        #t1 = time()
+        #print "getmatrix " + str((t1-t0)*100)
+
+        #t0 = time()
         # solve rate matrix
-        newpop = np.linalg.lstsq(ratem, newpop, rcond=None)[0]
+        newpop = solvematrix(ratem, newpop)
+        #t1 = time()
+        #print "solve " + str((t1-t0)*100)
 
         diff = 0
         newpop = np.maximum(newpop, eps)

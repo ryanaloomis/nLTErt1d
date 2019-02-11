@@ -2,15 +2,32 @@ import numpy as np
 from simulation import *
 from model import *
 from common import *
-from vfunc_1d import *
+#from vfunc_1d import *
 from numerical import *
 from time import time
+from numba import jit
 
-def photon(sim, idx, debug):
-    sim.phot *= 0.
-    for iphot in range(sim.nphot[idx]):
-        #start = time()
-        sim.tau *= 0. 
+@jit(nopython=True)
+def vfunc(v, s, rpos, phi, vphot):
+    # Get direction and position at location s along l.o.s. 
+    psis = np.arctan2(s*np.sin(phi), rpos + s*np.cos(phi))
+    phis = phi - psis
+    r = np.sqrt(rpos**2. + s**2. + 2.*rpos*s*np.cos(phi))
+
+    # vfunc is velocity difference between between photon and gas
+    # projected on l.o.s.
+    vfunc = vphot - np.cos(phis)*v[0]
+    return vfunc
+
+
+@jit(nopython=True)
+def photon(fixseed, stage, ra, rb, nmol, doppb, vel_grid, lau, lal, aeinst, beinstu, beinstl, tcmb, ncell, nline, pops, dust, knu, norm, cmb, nphot, idx):
+    phot = np.zeros((nline+2, nphot))
+    if stage ==1:
+        np.random.seed(fixseed)
+    
+    for iphot in range(nphot):
+        tau = np.zeros(nline)
         posn = idx
         firststep = True
 
@@ -21,20 +38,17 @@ def photon(sim, idx, debug):
         # homogeneously distributed over +/-2.15 * local Doppler b from
         # local velocity.
 
-        #dummy = ran1()
         dummy = np.random.random()        
-        if (sim.model.grid['ra'][idx] > 0.):
-            rpos = sim.model.grid['ra'][idx]*(1. + dummy*((sim.model.grid['rb'][idx]/sim.model.grid['ra'][idx])**3 - 1.))**(1./3.)
+        if (ra[idx] > 0.):
+            rpos = ra[idx]*(1. + dummy*((rb[idx]/ra[idx])**3 - 1.))**(1./3.)
         else:
-            rpos = sim.model.grid['rb'][idx]*dummy**(1./3.)
+            rpos = rb[idx]*dummy**(1./3.)
 
-        #dummy = 2.*ran1() - 1.
         dummy = 2.*np.random.random() - 1.
         phi = np.arcsin(dummy) + np.pi/2.
 
-        if debug: print('[debug] calling velo, iphot = ' + str(iphot))
-        vel = sim.model.velo(idx, rpos)
-        deltav = (np.random.random() - 0.5)*4.3*sim.model.grid['doppb'][idx] + np.cos(phi)*vel[0]
+        vel = vel_grid[idx]
+        deltav = (np.random.random() - 0.5)*4.3*doppb[idx] + np.cos(phi)*vel[0]
 
         # Propagate to edge of cloud by moving from cell edge to cell edge.
         # After the first step (i.e., after moving to the edge of cell id),
@@ -45,22 +59,21 @@ def photon(sim, idx, debug):
         in_cloud = True
 
         while in_cloud:
-            #t0 = time()
             cosphi = np.cos(phi)
             sinphi = np.sin(phi)
 
             # Find distance to nearest cell edge
             if (np.abs(phi) < np.pi/2.) or (posn == 0):
                 dpos = 1
-                rnext = sim.model.grid['rb'][posn]*(1 + delta)
+                rnext = rb[posn]*(1 + delta)
                 bac = 4.*((rpos*cosphi)**2. - rpos**2. + rnext**2.)
             else:
                 dpos = -1
-                rnext = sim.model.grid['ra'][posn]*(1 - delta)
+                rnext = ra[posn]*(1 - delta)
                 bac = 4.*((rpos*cosphi)**2. - rpos**2. + rnext**2.)
                 if (bac < 0.):
                     dpos = 1
-                    rnext = sim.model.grid['rb'][posn]*(1 + delta)
+                    rnext = rb[posn]*(1 + delta)
                     bac = 4.*((rpos*cosphi)**2. - rpos**2. + rnext**2.)
 
             dsplus = -0.5*(2.*rpos*cosphi + np.sqrt(bac))
@@ -71,60 +84,53 @@ def photon(sim, idx, debug):
             else:
                 if (dsplus < 0.): ds = dsminn
                 if (dsminn < 0.): ds = dsplus
-                if (dsminn*dsplus > 0.): ds = np.min([dsplus, dsminn])
-            #t1 = time()
-            #print (t1-t0)*1000.
+                if (dsminn*dsplus > 0.): ds = np.min(np.array([dsplus, dsminn]))
 
             # Find "vfac", the velocity line profile factor
             # Number of splines nspline=los_delta_v/local_line_width
             # Number of averaging steps naver=local_delta_v/local_line_width
-            if (sim.model.grid['nmol'][posn] > eps):
-                #t0 = time()
-                b = sim.model.grid['doppb'][posn]
-                v1 = vfunc(sim, 0., idx, rpos, phi, deltav)
-                v2 = vfunc(sim, ds, idx, rpos, phi, deltav)   
+            if (nmol[posn] > eps):
+                b = doppb[posn]
+                v1 = vfunc(vel_grid[idx], 0., rpos, phi, deltav)
+                v2 = vfunc(vel_grid[idx], ds, rpos, phi, deltav)   
                 nspline = np.maximum(1, int(np.abs(v1 - v2)/b))
                 vfac = 0.
                 for ispline in range(nspline):
                     s1 = ds*(ispline)/nspline
                     s2 = ds*(ispline+1.)/nspline
-                    v1 = vfunc(sim, s1, idx, rpos, phi, deltav)
-                    v2 = vfunc(sim, s2, idx, rpos, phi, deltav)
+                    v1 = vfunc(vel_grid[idx], s1, rpos, phi, deltav)
+                    v2 = vfunc(vel_grid[idx], s2, rpos, phi, deltav)
                     naver = np.maximum(1, int(np.abs(v1 - v2)/b))
                     for iaver in range(naver):
                         s = s1 + (s2-s1)*(iaver + 0.5)/naver
-                        v = vfunc(sim, s, idx, rpos, phi, deltav)
+                        v = vfunc(vel_grid[idx], s, rpos, phi, deltav)
                         vfacsub = np.exp(-(v/b)**2)
                         vfac += vfacsub/naver
                 vfac /= nspline
-                #t1 = time()
 
                 # backwards integrate dI/ds      
-                jnu = sim.dust[:,posn]*sim.knu[:,posn] + vfac*hpip/b*sim.model.grid['nmol'][posn]*sim.pops[sim.mol.lau,posn]*sim.mol.aeinst
-                alpha = sim.knu[:,posn] + vfac*hpip/b*sim.model.grid['nmol'][posn]*(sim.pops[sim.mol.lal,posn]*sim.mol.beinstl - sim.pops[sim.mol.lau,posn]*sim.mol.beinstu)
+                jnu = dust[:,posn]*knu[:,posn] + vfac*hpip/b*nmol[posn]*pops[lau,posn]*aeinst
+                alpha = knu[:,posn] + vfac*hpip/b*nmol[posn]*(pops[lal,posn]*beinstl - pops[lau,posn]*beinstu)
     
-                snu = jnu/alpha/sim.norm
+                snu = jnu/alpha/norm
                 snu[np.abs(alpha) < eps] = 0.
 
                 dtau = alpha*ds
                 dtau[dtau < negtaulim] = negtaulim
 
                 if not firststep:
-                    sim.phot[2:, iphot] += np.exp(-sim.tau)*(1. - np.exp(-dtau))*snu
-                    sim.tau += dtau
-                    sim.tau[sim.tau < negtaulim] = negtaulim
+                    phot[2:, iphot] += np.exp(-tau)*(1. - np.exp(-dtau))*snu
+                    tau += dtau
+                    tau[tau < negtaulim] = negtaulim
 
                 if firststep:
-                    sim.phot[0, iphot] = ds
-                    sim.phot[1, iphot] = vfac
+                    phot[0, iphot] = ds
+                    phot[1, iphot] = vfac
                     firststep = False
-                #t2 = time()
-                #print (t1-t0)*1000., (t2-t1)*1000.
-
 
             # Update photon position, direction; check if escaped
             posn = posn + dpos
-            if (posn >= sim.ncell):
+            if (posn >= ncell):
                 break        # reached edge of cloud, break
 
             psi = np.arctan2(ds*sinphi, rpos + ds*cosphi)
@@ -133,13 +139,11 @@ def photon(sim, idx, debug):
             rpos = rnext
 
         # Finally, add cmb to memorized i0 incident on cell id
-        if (sim.model.tcmb > 0.):
-            for iline in range(sim.nline):
-                sim.phot[iline+2, iphot] += np.exp(-sim.tau[iline])*sim.cmb[iline]
-        #end = time()
-        #print end-start
+        if (tcmb > 0.):
+            for iline in range(nline):
+                phot[iline+2, iphot] += np.exp(-tau[iline])*cmb[iline]
 
-    return
+    return phot
 
 
 
