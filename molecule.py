@@ -1,11 +1,30 @@
 import numpy as np
-from common import *
+from io import read_LAMDA
+from common import hplanck, clight, kboltz
 
 # converts energy in cm-1 to J
 hckb = 100.*hplanck*clight/kboltz
 
+
 class molecule:
+
     def __init__(self, sim, molfile, debug):
+        """Initialize the molecule class."""
+
+        input = read_LAMDA(molfile)
+
+        self.molename, self.molweight, self.nlev, self.nline = input[:4]
+        self.npart, self.level_idx, self.eterm, self.gstat = input[4:8]
+        self.lau, self.lal, self.aeinst, self.freq, self.beinstu = input[8:13]
+        self.beinstl, part1, part2 = input[13:]
+
+        self.part1id, self.ntrans, self.ntemp, self.coll_temps = part1[:4]
+        self.part2id, self.ntrans2, self.ntemp2, self.coll_temps2 = part2[:4]
+        self.lcu, self.lcl, self.coll_d = part1[4:]
+        self.lcu2, self.lcl2, self.coll_d2 = part2[4:]
+
+        # -- Older code below here. -- #
+
         self.sim = sim
         self.molfile = molfile
 
@@ -18,7 +37,7 @@ class molecule:
         # Structure of file is known, so start reading the headers
         try:
             self.molname = lines[1].split()[0]
-            self.molweight = float(lines[3].split()[0])          
+            self.molweight = float(lines[3].split()[0])
             self.nlev = int(lines[5].split()[0])
             self.nline = int(lines[8 + self.nlev].split()[0])
             self.npart = int(lines[11 + self.nlev + self.nline].split()[0])
@@ -29,7 +48,7 @@ class molecule:
             self.ntrans = int(lines[15 + self.nlev + self.nline].split()[0])
             self.ntemp = int(lines[17 + self.nlev + self.nline].split()[0])
 
-            if (self.npart==1):
+            if (self.npart == 1):
                 self.part2id = None
                 self.ntrans2 = 1
                 self.ntemp2 = 1
@@ -54,7 +73,6 @@ class molecule:
         # Parse level properties - energies and statistical weights
         self.eterm = level_data[:,1]
         self.gstat = level_data[:,2]
-
 
         # Read in the line data
         line_data = lines[10 + self.nlev : 10 + self.nlev+self.nline]
@@ -98,7 +116,7 @@ class molecule:
             for i, line in enumerate(self.coll_data2):
                 self.coll_data2[i] = line.split()
             self.coll_data2 = np.array(self.coll_data2).astype(float)
- 
+
             # convert cm^3/s to m^3/s
             self.coll_data2[:,3:] /= 1.e6
 
@@ -118,13 +136,13 @@ class molecule:
         # Interpolate downward rates, but do not extrapolate.
         self.up = np.zeros((self.ntrans, sim.ncell))
         self.down = np.zeros((self.ntrans, sim.ncell))
-        
+
         for idx in range(sim.ncell):
             for t in range(self.ntrans):
-                self.down[t,idx] = np.interp(sim.model.grid['tkin'][idx], self.coll_temps, self.colld[t]) 
+                self.down[t,idx] = np.interp(sim.model.grid['tkin'][idx], self.coll_temps, self.colld[t])
 
         self.down[:,sim.model.grid['tkin'] > self.coll_temps[-1]] = self.colld[:,-1, np.newaxis]
-        
+
         for idx in range(sim.ncell):
             for t in range(self.ntrans):
                 self.up[t,idx] = self.gstat[self.lcu[t]]/self.gstat[self.lcl[t]]*self.down[t,idx]*np.exp(-hckb*(self.eterm[self.lcu[t]]-self.eterm[self.lcl[t]])/sim.model.grid['tkin'][idx])
@@ -133,13 +151,13 @@ class molecule:
         if self.part2id:
             self.up2 = np.zeros((self.ntrans2, sim.ncell))
             self.down2 = np.zeros((self.ntrans2, sim.ncell))
-            
+
             for idx in range(sim.ncell):
                 for t in range(self.ntrans2):
-                    self.down2[t,idx] = np.interp(sim.model.grid['tkin'][idx], self.coll_temps2, self.colld2[t]) 
+                    self.down2[t,idx] = np.interp(sim.model.grid['tkin'][idx], self.coll_temps2, self.colld2[t])
 
             self.down2[:,sim.model.grid['tkin'] > self.coll_temps2[-1]] = self.colld2[:,-1, np.newaxis]
-            
+
             for idx in range(sim.ncell):
                 for t in range(self.ntrans2):
                     self.up2[t,idx] = self.gstat[self.lcu2[t]]/self.gstat[self.lcl2[t]]*self.down2[t,idx]*np.exp(-hckb*(self.eterm[self.lcu2[t]]-self.eterm[self.lcl2[t]])/sim.model.grid['tkin'][idx])
