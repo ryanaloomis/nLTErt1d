@@ -4,9 +4,9 @@ from model import *
 from common import *
 from numerical import *
 from time import time
-from numba import jit
+from numba import jit, prange
 
-@jit(nopython=True, fastmath=True)
+@jit(nopython=True, parallel=True)
 def vfunc(v, s, rpos, phi, vphot):
     # Get direction and position at location s along l.o.s. 
     psis = np.arctan2(s*np.sin(phi), rpos + s*np.cos(phi))

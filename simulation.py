@@ -135,12 +135,12 @@ class simulation:
 
         vel_grid = np.array([self.model.grid['vr'], self.model.grid['vr'], self.model.grid['vr']]).T # TODO
 
-        _calc_pops(self.fixseed, self.fixset, bool(self.mol.part2id), self.model.grid['ra'], self.model.grid['rb'], self.model.grid['nmol'], self.model.grid['nh2'], ne, self.model.grid['doppb'], vel_grid, self.mol.lau, self.mol.lal, self.mol.lcu, self.mol.lcl, self.mol.lcu2, self.mol.lcl2, self.mol.down, self.mol.up, self.mol.down2, self.mol.up2, self.mol.aeinst, self.mol.beinstu, self.mol.beinstl, self.model.tcmb, self.ncell, self.nline, self.nlev, self.dust, self.knu, self.norm, self.cmb, self.nphot, self.minpop, self.outfile)
+        _calc_pops(self.fixseed, self.fixset, self.goalsnr, bool(self.mol.part2id), self.model.grid['ra'], self.model.grid['rb'], self.model.grid['nmol'], self.model.grid['nh2'], ne, self.model.grid['doppb'], vel_grid, self.mol.lau, self.mol.lal, self.mol.lcu, self.mol.lcl, self.mol.lcu2, self.mol.lcl2, self.mol.down, self.mol.up, self.mol.down2, self.mol.up2, self.mol.aeinst, self.mol.beinstu, self.mol.beinstl, self.model.tcmb, self.ncell, self.nline, self.nlev, self.dust, self.knu, self.norm, self.cmb, self.nphot, self.minpop, self.outfile)
 
 
 
 @jit()
-def _calc_pops(fixseed, fixset, part2id, ra, rb, nmol, nh2, ne, doppb, vel_grid, lau, lal, lcu, lcl, lcu2, lcl2, down, up, down2, up2, aeinst, beinstu, beinstl, tcmb, ncell, nline, nlev, dust, knu, norm, cmb, nphot, minpop, outfile):
+def _calc_pops(fixseed, fixset, goalsnr, part2id, ra, rb, nmol, nh2, ne, doppb, vel_grid, lau, lal, lcu, lcl, lcu2, lcl2, down, up, down2, up2, aeinst, beinstu, beinstl, tcmb, ncell, nline, nlev, dust, knu, norm, cmb, nphot, minpop, outfile):
     print('AMC')
     print('AMC: Starting with FIXSET convergence;'
           'limit=' + str(fixset))
@@ -176,15 +176,15 @@ def _calc_pops(fixseed, fixset, part2id, ra, rb, nmol, nh2, ne, doppb, vel_grid,
                     opops[ilev, idx] = pops[ilev, idx]
 
                 if (nh2[idx] >= eps):
-                    t0 = time()
+                    #t0 = time()
                     phot = photon(fixseed, stage, ra, rb, nmol, doppb, vel_grid, lau, lal, aeinst, beinstu, beinstl, tcmb, ncell, nline, pops, dust, knu, norm, cmb, nphot[idx], idx)
-                    t1 = time()
-                    print("photon time = " + str(t1-t0))
+                    #t1 = time()
+                    #print("photon time = " + str(t1-t0))
 
-                    t0 = time()
+                    #t0 = time()
                     staterr, pops = stateq(part2id, phot, nmol, nh2, ne, doppb, lau, lal, lcu, lcl, lcu2, lcl2, down, up, down2, up2, aeinst, beinstu, beinstl, nline, nlev, pops, dust, knu, norm, minpop, idx)
-                    t1 = time()
-                    print("stateq time = " + str(t1-t0))
+                    #t1 = time()
+                    #print("stateq time = " + str(t1-t0))
 
             t0 = time()
             # Determine snr in cell
