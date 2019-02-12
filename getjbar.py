@@ -1,5 +1,4 @@
 from common import eps, negtaulim
-import scipy.constants as sc
 import numpy as np
 from simulation import *
 from model import *

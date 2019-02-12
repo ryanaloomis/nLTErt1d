@@ -1,6 +1,6 @@
 import numpy as np
-from io import read_LAMDA
-from common import hplanck, clight, kboltz
+from reading import read_LAMDA
+from common import hplanck, clight, kboltz, amu
 
 # converts energy in cm-1 to J
 hckb = 100.*hplanck*clight/kboltz

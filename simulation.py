@@ -67,7 +67,7 @@ class simulation:
         # Read in the source model
         if self.debug:
             print('[debug] reading in source model')
-        self.model = model(self.source, self.debug)
+        self.model = model(self.source, 'ratran', self.debug) # currently setting to ratran as default
         self.ncell = self.model.ncell
 
         # Check to make sure that there's a valid velocity field
@@ -155,8 +155,6 @@ class simulation:
 
                     # Stage 1=FIXSET > re-initialize random generator each time
                     if (stage == 1):
-                        # ran1(reset=True)
-
                         np.random.seed(self.fixseed)
 
                     for ilev in range(self.nlev):
@@ -166,17 +164,18 @@ class simulation:
                     if (self.model.grid['nh2'][idx] >= eps):
                         if self.debug:
                             print('[debug] calling photon for cell', str(idx))
-                        t0 = time()
-                        photon(self, idx, self.debug)
-                        t1 = time()
-                        print("photon time = " + str(t1-t0))
+                        #t0 = time()
+                        vel_grid = np.array([self.model.grid['vr'], self.model.grid['vr'], self.model.grid['vr']]).T # TODO
+                        self.phot = photon(self.fixseed, stage, self.model.grid['ra'], self.model.grid['rb'], self.model.grid['nmol'], self.model.grid['doppb'], vel_grid, self.mol.lau, self.mol.lal, self.mol.aeinst, self.mol.beinstu, self.mol.beinstl, self.model.tcmb, self.ncell, self.nline, self.pops, self.dust, self.knu, self.norm, self.cmb, self.nphot[idx], idx)
+                        #t1 = time()
+                        #print("photon time = " + str(t1-t0))
 
                         if self.debug:
                             print('[debug] calling stateq for cell', str(idx))
-                        t0 = time()
+                        #t0 = time()
                         self.staterr = stateq(self, idx, self.debug)
-                        t1 = time()
-                        print "stateq time = " + str(t1-t0)
+                        #t1 = time()
+                        #print "stateq time = " + str(t1-t0)
 
                 if self.debug:
                     print('[debug] calculating s/n for cell', str(idx))
@@ -222,8 +221,8 @@ class simulation:
             if (stage == 1):
                 percent = float(conv)/self.ncell*100.
                 blowpops(self.outfile, self, snr, percent)
-                print('AMC: FIXSET fractional error', str(1./minsnr), ',',
-                      str(percent), '% converged')
+                print('AMC: FIXSET fractional error' + " " + str(1./minsnr) + ', ' +
+                      str(percent) + '% converged')
                 if (conv == self.ncell):
                     stage = 2
                     print('AMC')

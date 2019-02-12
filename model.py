@@ -16,7 +16,7 @@ class model:
 
         model_type = model_type.lower()
         if model_type == 'ratran':
-            from io import read_RATRAN
+            from reading import read_RATRAN
             values = read_RATRAN(model_file)
         else:
             raise ValueError("`model_type` must be: 'ratran'.")

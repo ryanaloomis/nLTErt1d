@@ -2,7 +2,6 @@ import numpy as np
 from simulation import *
 from model import *
 from common import *
-#from vfunc_1d import *
 from numerical import *
 from time import time
 from numba import jit

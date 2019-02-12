@@ -41,7 +41,7 @@ def blowpops(outfile, sim, snr, percent):
         # I _think_ this is what this parameter is.
         v_turb = 2. * sc.k * sim.model.grid["tkin"][idx]
         v_turb /= sim.mol.molweight * sc.m_p
-        v_turb = np.sqrt(sim.model.grid["doppb"][idx]**2 - v_turb) / 1.0e3,
+        v_turb = np.sqrt(sim.model.grid["doppb"][idx]**2 - v_turb) / 1.0e3
 
         print_vals = [idx+1,                                # Cell number.
                       sim.model.grid["ra"][idx],            # ?

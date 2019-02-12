@@ -31,11 +31,18 @@ def stateq(sim, idx, debug=False, miniter=10, maxiter=100, tol=1e0-6):
     opop = np.zeros(sim.nlev)
     oopop = np.zeros(sim.nlev)
 
+    jnu_dust = sim.dust[:, idx]*sim.knu[:, idx]
+    alpha_dust = sim.knu[:, idx]
+
+    ds = sim.phot[0]
+    vfac = sim.phot[1]
+    vsum = np.sum(vfac)
+
     # Get updated jbar.
     for iter in range(maxiter):
         if debug:
             print('[debug] calling getjbar, iter= ' + str(iter))
-        getjbar(sim, idx, debug)
+        sim.mol.jbar = getjbar(ds, vfac, vsum, sim.phot, sim.model.grid['nmol'], sim.model.grid['doppb'], sim.mol.lau, sim.mol.lal, sim.mol.aeinst, sim.mol.beinstu, sim.mol.beinstl, sim.nline, sim.pops, jnu_dust, alpha_dust, sim.norm, idx)
 
         newpop = np.zeros(sim.nlev + 1)
         newpop[-1] = 1.
@@ -74,7 +81,7 @@ def stateq(sim, idx, debug=False, miniter=10, maxiter=100, tol=1e0-6):
         if np.any((np.minimum(newpop[:-1], oopop) > sim.minpop)):
             _diff = np.maximum(np.abs(newpop[:-1] - opop) / newpop[:-1],
                                np.abs(newpop[:-1] - oopop) / newpop[:-1])
-            diff = np.maximum(_diff, diff)
+            diff = np.max(np.maximum(_diff, diff))
 
         if (iter > miniter) and (diff < tol):
             continue
