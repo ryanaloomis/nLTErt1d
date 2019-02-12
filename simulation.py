@@ -164,18 +164,22 @@ class simulation:
                     if (self.model.grid['nh2'][idx] >= eps):
                         if self.debug:
                             print('[debug] calling photon for cell', str(idx))
-                        #t0 = time()
+                        t0 = time()
                         vel_grid = np.array([self.model.grid['vr'], self.model.grid['vr'], self.model.grid['vr']]).T # TODO
                         self.phot = photon(self.fixseed, stage, self.model.grid['ra'], self.model.grid['rb'], self.model.grid['nmol'], self.model.grid['doppb'], vel_grid, self.mol.lau, self.mol.lal, self.mol.aeinst, self.mol.beinstu, self.mol.beinstl, self.model.tcmb, self.ncell, self.nline, self.pops, self.dust, self.knu, self.norm, self.cmb, self.nphot[idx], idx)
-                        #t1 = time()
-                        #print("photon time = " + str(t1-t0))
+                        t1 = time()
+                        print("photon time = " + str(t1-t0))
 
                         if self.debug:
                             print('[debug] calling stateq for cell', str(idx))
-                        #t0 = time()
-                        self.staterr = stateq(self, idx, self.debug)
-                        #t1 = time()
-                        #print "stateq time = " + str(t1-t0)
+                        t0 = time()
+                        if self.mol.part2id:
+                            ne = self.model.grid['ne']
+                        else:
+                            ne = np.zeros(self.model.grid['nh2'].shape)
+                        self.staterr, self.pops = stateq(bool(self.mol.part2id), self.phot, self.model.grid['nmol'], self.model.grid['nh2'], ne, self.model.grid['doppb'], self.mol.lau, self.mol.lal, self.mol.lcu, self.mol.lcl, self.mol.lcu2, self.mol.lcl2, self.mol.down, self.mol.up, self.mol.down2, self.mol.up2, self.mol.aeinst, self.mol.beinstu, self.mol.beinstl, self.nline, self.nlev, self.pops, self.dust, self.knu, self.norm, self.minpop, idx)
+                        t1 = time()
+                        print "stateq time = " + str(t1-t0)
 
                 if self.debug:
                     print('[debug] calculating s/n for cell', str(idx))

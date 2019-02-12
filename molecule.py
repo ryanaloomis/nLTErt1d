@@ -130,6 +130,10 @@ class molecule:
             self.lcu2 = self.coll_data2[:,1].astype(int) - 1
             self.lcl2 = self.coll_data2[:,2].astype(int) - 1
             self.colld2 = self.coll_data2[:,3:]
+        else:
+            self.lcu2 = np.zeros(self.lcu.shape).astype(int)
+            self.lcl2 = np.zeros(self.lcl.shape).astype(int)
+            self.colld2 = np.zeros(self.colld.shape)
 
 
         # Calculate upward/downward rates in all non-empty cells.
@@ -148,10 +152,9 @@ class molecule:
                 self.up[t,idx] = self.gstat[self.lcu[t]]/self.gstat[self.lcl[t]]*self.down[t,idx]*np.exp(-hckb*(self.eterm[self.lcu[t]]-self.eterm[self.lcl[t]])/sim.model.grid['tkin'][idx])
 
 
+        self.up2 = np.zeros((self.ntrans2, sim.ncell))
+        self.down2 = np.zeros((self.ntrans2, sim.ncell))
         if self.part2id:
-            self.up2 = np.zeros((self.ntrans2, sim.ncell))
-            self.down2 = np.zeros((self.ntrans2, sim.ncell))
-
             for idx in range(sim.ncell):
                 for t in range(self.ntrans2):
                     self.down2[t,idx] = np.interp(sim.model.grid['tkin'][idx], self.coll_temps2, self.colld2[t])
@@ -161,7 +164,3 @@ class molecule:
             for idx in range(sim.ncell):
                 for t in range(self.ntrans2):
                     self.up2[t,idx] = self.gstat[self.lcu2[t]]/self.gstat[self.lcl2[t]]*self.down2[t,idx]*np.exp(-hckb*(self.eterm[self.lcu2[t]]-self.eterm[self.lcl2[t]])/sim.model.grid['tkin'][idx])
-
-
-        # Initialize some other properties, jbar, etc...
-        self.jbar = np.zeros(self.nlev)
