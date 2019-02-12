@@ -256,7 +256,5 @@ class simulation:
         # Convergence reached (or bailed out)
         print('AMC: ' + str(minsnr) + '  |  ' + str(percent) + '% |  ' + str(totphot) + '  |  converged')
         print('AMC:')
-
-        # blowpops(self.outfile, self.molfile, self.snrgoal, minsnr, percent,
-        #          stage, self.fixset, self.trace) # TODO
+        blowpops(self.outfile, self, snr, percent)
         print('AMC: Written output to ' + str(self.outfile))
