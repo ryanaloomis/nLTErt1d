@@ -1,10 +1,10 @@
 import numpy as np
 from common import eps, hpip, negtaulim
 from time import time
-from numba import jit
+from numba import jit, prange
 
 
-@jit(nopython=True)
+@jit(nopython=True, fastmath=True, parallel=True)
 def getjbar(ds, vfac, vsum, phot, nmol, doppb, lau, lal, aeinst, beinstu, beinstl, nline, pops, jnu_dust, alpha_dust, norm, idx):
     """
     Set the jbar value for the given radial index.
@@ -22,9 +22,9 @@ def getjbar(ds, vfac, vsum, phot, nmol, doppb, lau, lal, aeinst, beinstu, beinst
     jnu_precalc = 1./doppb[idx]*hpip*nmol[idx]*(pops[lau, idx])*aeinst
     alpha_precalc = 1./doppb[idx]*hpip*nmol[idx]*((pops[lal,idx])*beinstl - (pops[lau,idx])*beinstu)
 
-    for iline in range(nline):
+    for iline in prange(nline):
         jbar_temp = 0.
-        for iphot in range(ds.shape[0]):
+        for iphot in prange(ds.shape[0]):
             jnu = jnu_dust[iline] + vfac[iphot]*jnu_precalc[iline]
             alpha = alpha_dust[iline] + vfac[iphot]*alpha_precalc[iline]
 
@@ -50,13 +50,13 @@ def getjbar(ds, vfac, vsum, phot, nmol, doppb, lau, lal, aeinst, beinstu, beinst
 
 
 
-@jit(nopython=True)
+@jit(nopython=True, fastmath=True, parallel=True)
 def getmatrix(part2id, phot, nh2, ne, lau, lal, lcu, lcl, lcu2, lcl2, down, up, down2, up2, aeinst, beinstu, beinstl, nline, nlev, jbar, idx):
     mtrx = np.zeros((nlev+1, nlev+1))
     colli = np.zeros((nlev, nlev))
     colli2 = np.zeros((nlev, nlev))
 
-    for t in range(nline):
+    for t in prange(nline):
         k = lau[t]                                          
         l = lal[t]                                           
         mtrx[k,k] += beinstu[t]*jbar[t] + aeinst[t] 
@@ -66,12 +66,12 @@ def getmatrix(part2id, phot, nh2, ne, lau, lal, lcu, lcl, lcu2, lcl2, down, up, 
 
 
     # create collision rate matrix
-    for i in range(nlev):
+    for i in prange(nlev):
         colli[lcu[i], lcl[i]] = down[i,idx]
         colli[lcl[i], lcu[i]] = up[i,idx]
 
     if part2id:
-        for i in range(nlev):
+        for i in prange(nlev):
             colli2[lcu2[i], lcl2[i]] = down2[i,idx]
             colli2[lcl2[i], lcu2[i]] = up2[i,idx]
 
@@ -87,13 +87,13 @@ def getmatrix(part2id, phot, nh2, ne, lau, lal, lcu, lcl, lcu2, lcl2, down, up, 
     # Fill the rate matrix with the collisional contributions.
     # check if two second collisional partner exists in model
     if part2id:
-        for i in range(nlev):
+        for i in prange(nlev):
             mtrx[i,i] += nh2[idx]*ctot[i] + ne[idx]*ctot2[i]
         mtrx[:-1,:-1] += -nh2[idx]*colli.T - ne[idx]*colli2.T
         mtrx[nlev,:-1] = 1.
         mtrx[:-1,nlev] = 0.
     else:
-        for i in range(nlev):
+        for i in prange(nlev):
             mtrx[i,i] += nh2[idx]*ctot[i]
         mtrx[:-1,:-1] += -nh2[idx]*colli.T
         mtrx[nlev,:-1] = 1.
@@ -103,14 +103,14 @@ def getmatrix(part2id, phot, nh2, ne, lau, lal, lcu, lcl, lcu2, lcl2, down, up, 
 
 
 
-@jit(nopython=True)
+@jit(nopython=True, fastmath=True, parallel=True)
 def solvematrix(ratem, newpop):
     result = np.linalg.lstsq(ratem, newpop)
     return result[0]
 
 
   
-@jit(nopython=True)
+@jit(nopython=True, fastmath=True)
 def stateq(part2id, phot, nmol, nh2, ne, doppb, lau, lal, lcu, lcl, lcu2, lcl2, down, up, down2, up2, aeinst, beinstu, beinstl, nline, nlev, pops, dust, knu, norm, minpop, idx, miniter=10, maxiter=100, tol=1e0-6):
     """
     Iterate for convergence between radiation field and excitation.

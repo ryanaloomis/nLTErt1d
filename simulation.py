@@ -9,6 +9,7 @@ from stateq import stateq
 from blowpops import blowpops
 from time import time
 import scipy.constants as sc
+from numba import jit
 
 
 class simulation:
@@ -119,142 +120,143 @@ class simulation:
                                                self.model.grid['tdust'][idx])
 
         # Set up the Monte Carlo simulation
-        self.pops = np.zeros((self.nlev, self.ncell))
-        self.opops = np.zeros((self.nlev, self.ncell))
-        self.oopops = np.zeros((self.nlev, self.ncell))
         self.nphot = np.full(self.ncell, nphot)  # Set nphot to initial number.
         self.niter = self.ncell  # Estimated crossing time.
         self.fixseed = self.seed
 
         t1 = time()
-        print "model set-up time = " + str(t1-t0)
+        print("model set-up time = " + str(t1-t0))
 
     def calc_pops(self):
-        print('AMC')
-        print('AMC: Starting with FIXSET convergence;'
-              'limit=' + str(self.fixset))
+        if self.mol.part2id:
+            ne = self.model.grid['ne']
+        else:
+            ne = np.zeros(self.model.grid['nh2'].shape)
 
-        stage = 1  # 1 = initial phase with fixed photon paths=FIXSET.
-        percent = 0
-        done = False  # have we finished converging yet?
+        vel_grid = np.array([self.model.grid['vr'], self.model.grid['vr'], self.model.grid['vr']]).T # TODO
 
-        while not done:
-            conv = 0
-            exceed = 0
-            totphot = 0
-            totphot2 = 0
-            minsnr = 1. / self.fixset  # smallest number to be counted
-            self.staterr = 0.
+        _calc_pops(self.fixseed, self.fixset, bool(self.mol.part2id), self.model.grid['ra'], self.model.grid['rb'], self.model.grid['nmol'], self.model.grid['nh2'], ne, self.model.grid['doppb'], vel_grid, self.mol.lau, self.mol.lal, self.mol.lcu, self.mol.lcl, self.mol.lcu2, self.mol.lcl2, self.mol.down, self.mol.up, self.mol.down2, self.mol.up2, self.mol.aeinst, self.mol.beinstu, self.mol.beinstl, self.model.tcmb, self.ncell, self.nline, self.nlev, self.dust, self.knu, self.norm, self.cmb, self.nphot, self.minpop, self.outfile)
 
-            # Loop over all cells.
-            for idx in range(self.ncell):
-                self.phot = np.zeros((self.nline+2, self.nphot[idx]))
 
-                # Always do sets of three to build SNR.
-                for iternum in range(3):
 
-                    # Stage 1=FIXSET > re-initialize random generator each time
-                    if (stage == 1):
-                        np.random.seed(self.fixseed)
+@jit()
+def _calc_pops(fixseed, fixset, part2id, ra, rb, nmol, nh2, ne, doppb, vel_grid, lau, lal, lcu, lcl, lcu2, lcl2, down, up, down2, up2, aeinst, beinstu, beinstl, tcmb, ncell, nline, nlev, dust, knu, norm, cmb, nphot, minpop, outfile):
+    print('AMC')
+    print('AMC: Starting with FIXSET convergence;'
+          'limit=' + str(fixset))
+    stage = 1  # 1 = initial phase with fixed photon paths=FIXSET.
+    percent = 0
+    done = False  # have we finished converging yet?
 
-                    for ilev in range(self.nlev):
-                        self.oopops[ilev, idx] = self.opops[ilev, idx]
-                        self.opops[ilev, idx] = self.pops[ilev, idx]
+    pops = np.zeros((nlev, ncell))
+    opops = np.zeros((nlev, ncell))
+    oopops = np.zeros((nlev, ncell))
 
-                    if (self.model.grid['nh2'][idx] >= eps):
-                        if self.debug:
-                            print('[debug] calling photon for cell', str(idx))
-                        t0 = time()
-                        vel_grid = np.array([self.model.grid['vr'], self.model.grid['vr'], self.model.grid['vr']]).T # TODO
-                        self.phot = photon(self.fixseed, stage, self.model.grid['ra'], self.model.grid['rb'], self.model.grid['nmol'], self.model.grid['doppb'], vel_grid, self.mol.lau, self.mol.lal, self.mol.aeinst, self.mol.beinstu, self.mol.beinstl, self.model.tcmb, self.ncell, self.nline, self.pops, self.dust, self.knu, self.norm, self.cmb, self.nphot[idx], idx)
-                        t1 = time()
-                        print("photon time = " + str(t1-t0))
+    while not done:
+        conv = 0
+        exceed = 0
+        totphot = 0
+        totphot2 = 0
+        minsnr = 1. / fixset  # smallest number to be counted
+        staterr = 0.
 
-                        if self.debug:
-                            print('[debug] calling stateq for cell', str(idx))
-                        t0 = time()
-                        if self.mol.part2id:
-                            ne = self.model.grid['ne']
-                        else:
-                            ne = np.zeros(self.model.grid['nh2'].shape)
-                        self.staterr, self.pops = stateq(bool(self.mol.part2id), self.phot, self.model.grid['nmol'], self.model.grid['nh2'], ne, self.model.grid['doppb'], self.mol.lau, self.mol.lal, self.mol.lcu, self.mol.lcl, self.mol.lcu2, self.mol.lcl2, self.mol.down, self.mol.up, self.mol.down2, self.mol.up2, self.mol.aeinst, self.mol.beinstu, self.mol.beinstl, self.nline, self.nlev, self.pops, self.dust, self.knu, self.norm, self.minpop, idx)
-                        t1 = time()
-                        print "stateq time = " + str(t1-t0)
+        # Loop over all cells.
+        for idx in range(ncell):
+            phot = np.zeros((nline+2, nphot[idx]))
 
-                if self.debug:
-                    print('[debug] calculating s/n for cell', str(idx))
+            # Always do sets of three to build SNR.
+            for iternum in range(3):
 
-                t0 = time()
-                # Determine snr in cell
-                snr = self.fixset
-                var = 0.
-                totphot += self.nphot[idx]
-
-                for ilev in range(self.nlev):
-                    self.avepops = self.pops[ilev, idx] + self.opops[ilev, idx]
-                    self.avepops = (self.avepops + self.oopops[ilev, idx]) / 3.
-                    if self.avepops >= self.minpop:
-                        var = np.max([np.abs(self.pops[ilev, idx] - self.avepops)/self.avepops, np.abs(self.opops[ilev, idx] - self.avepops)/self.avepops, np.abs(self.oopops[ilev, idx] - self.avepops)/self.avepops])
-                        snr = np.max([snr, var])
-                snr = 1./snr
-                minsnr = np.min([snr, minsnr])
-
+                # Stage 1=FIXSET > re-initialize random generator each time
                 if (stage == 1):
-                    if (snr >= 1./self.fixset):
-                        conv += 1    # Stage 1=FIXSET
-                else:
-                    if (snr >= self.goalsnr):
-                        conv += 1
-                    else:
-                        # Double photons if cell not converged.
-                        newphot = self.nphot[idx]*2
-                        if (newphot >= max_phot):
-                            newphot = max_phot
-                            exceed += 1
-                            print('AMC: *** Limiting nphot in cell', str(idx))
-                        self.nphot[idx] = newphot
+                    np.random.seed(fixseed)
 
-                totphot2 += self.nphot[idx]
-                t1 = time()
+                for ilev in range(nlev):
+                    oopops[ilev, idx] = opops[ilev, idx]
+                    opops[ilev, idx] = pops[ilev, idx]
 
-            # Report any convergence problems if they occurred
-            if (self.staterr > 0.):
-                print('### WARNING: stateq did not converge everywhere'
-                      '(err=' + str(self.staterr) + ')')
+                if (nh2[idx] >= eps):
+                    t0 = time()
+                    phot = photon(fixseed, stage, ra, rb, nmol, doppb, vel_grid, lau, lal, aeinst, beinstu, beinstl, tcmb, ncell, nline, pops, dust, knu, norm, cmb, nphot[idx], idx)
+                    t1 = time()
+                    print("photon time = " + str(t1-t0))
+
+                    t0 = time()
+                    staterr, pops = stateq(part2id, phot, nmol, nh2, ne, doppb, lau, lal, lcu, lcl, lcu2, lcl2, down, up, down2, up2, aeinst, beinstu, beinstl, nline, nlev, pops, dust, knu, norm, minpop, idx)
+                    t1 = time()
+                    print("stateq time = " + str(t1-t0))
+
+            t0 = time()
+            # Determine snr in cell
+            snr = fixset
+            var = 0.
+            totphot += nphot[idx]
+
+            for ilev in range(nlev):
+                avepops = pops[ilev, idx] + opops[ilev, idx]
+                avepops = (avepops + oopops[ilev, idx]) / 3.
+                if avepops >= minpop:
+                    var = np.max([np.abs(pops[ilev, idx] - avepops)/avepops, np.abs(opops[ilev, idx] - avepops)/avepops, np.abs(oopops[ilev, idx] - avepops)/avepops])
+                    snr = np.max([snr, var])
+            snr = 1./snr
+            minsnr = np.min([snr, minsnr])
 
             if (stage == 1):
-                percent = float(conv)/self.ncell*100.
-                blowpops(self.outfile, self, snr, percent)
-                print('AMC: FIXSET fractional error' + " " + str(1./minsnr) + ', ' +
-                      str(percent) + '% converged')
-                if (conv == self.ncell):
-                    stage = 2
-                    print('AMC')
-                    print('AMC: FIXSET convergence reached...starting RANDOM')
-                    print('AMC:')
-                    print('AMC: minimum S/N  |  converged  |     photons  |  increase to')
-                    print('AMC: -------------|-------------|--------------|-------------')
-                # Next iteration
-                continue
-
+                if (snr >= 1./fixset):
+                    conv += 1    # Stage 1=FIXSET
             else:
-                if (conv == self.ncell):
-                    percent = 100.
+                if (snr >= goalsnr):
+                    conv += 1
                 else:
-                    if (exceed < self.ncell):
-                        percent = float(conv)/self.ncell*100.
-                        blowpops(self.outfile, self, snr, percent)
-                        print('AMC: ' + str(minsnr) + '  |  ' + str(percent) + '% |  ' + str(totphot) + '  |  ' + str(totphot2))
-                        # Next iteration
-                        continue
-                    else:
-                        print('### WARNING: Insufficient photons.'
-                              'Not converged.')
+                    # Double photons if cell not converged.
+                    newphot = nphot[idx]*2
+                    if (newphot >= max_phot):
+                        newphot = max_phot
+                        exceed += 1
+                        print('AMC: *** Limiting nphot in cell', str(idx))
+                    nphot[idx] = newphot
 
-            done = True
+            totphot2 += nphot[idx]
+            t1 = time()
 
-        # Convergence reached (or bailed out)
-        print('AMC: ' + str(minsnr) + '  |  ' + str(percent) + '% |  ' + str(totphot) + '  |  converged')
-        print('AMC:')
-        blowpops(self.outfile, self, snr, percent)
-        print('AMC: Written output to ' + str(self.outfile))
+        # Report any convergence problems if they occurred
+        if (staterr > 0.):
+            print('### WARNING: stateq did not converge everywhere'
+                  '(err=' + str(staterr) + ')')
+
+        if (stage == 1):
+            percent = float(conv)/ncell*100.
+            #blowpops(outfile, sim, snr, percent)
+            print('AMC: FIXSET fractional error' + " " + str(1./minsnr) + ', ' +
+                  str(percent) + '% converged')
+            if (conv == ncell):
+                stage = 2
+                print('AMC')
+                print('AMC: FIXSET convergence reached...starting RANDOM')
+                print('AMC:')
+                print('AMC: minimum S/N  |  converged  |     photons  |  increase to')
+                print('AMC: -------------|-------------|--------------|-------------')
+            # Next iteration
+            continue
+
+        else:
+            if (conv == ncell):
+                percent = 100.
+            else:
+                if (exceed < ncell):
+                    percent = float(conv)/ncell*100.
+                    #blowpops(outfile, sim, snr, percent)
+                    print('AMC: ' + str(minsnr) + '  |  ' + str(percent) + '% |  ' + str(totphot) + '  |  ' + str(totphot2))
+                    # Next iteration
+                    continue
+                else:
+                    print('### WARNING: Insufficient photons.'
+                          'Not converged.')
+
+        done = True
+
+    # Convergence reached (or bailed out)
+    print('AMC: ' + str(minsnr) + '  |  ' + str(percent) + '% |  ' + str(totphot) + '  |  converged')
+    print('AMC:')
+    #blowpops(outfile, sim, snr, percent)
+    print('AMC: Written output to ' + str(outfile))

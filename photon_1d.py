@@ -6,7 +6,7 @@ from numerical import *
 from time import time
 from numba import jit
 
-@jit(nopython=True)
+@jit(nopython=True, fastmath=True)
 def vfunc(v, s, rpos, phi, vphot):
     # Get direction and position at location s along l.o.s. 
     psis = np.arctan2(s*np.sin(phi), rpos + s*np.cos(phi))
