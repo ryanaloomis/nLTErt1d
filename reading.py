@@ -65,7 +65,7 @@ def read_LAMDA(path):
     lau, lal = transitions[1:3].astype('int') - 1
     Aul = transitions[3]
     freq = transitions[4] * 1e9
-    Bu = Aul * sc.c**2 * freq / 2. / sc.h
+    Bu = Aul * sc.c**2 / freq**3 / 2. / sc.h
     Bl = Bu * np.take(gstat, lau) / np.take(gstat, lal)
 
     # Get the collisional data and rates for the first partner.
@@ -80,7 +80,7 @@ def read_LAMDA(path):
     part1_crates = np.array(part1_crates).astype('float')
     if part1_crates.shape != (part1_ntrans, part1_ntemp + 3):
         raise Exception('Unexpected number of collision rates.')
-    part1_lcu, part1_lcl = part1_crates[1:3].astype('int') - 1
+    part1_lcu, part1_lcl = part1_crates[:, 1:3].T.astype('int') - 1
     part1_crates = part1_crates[:, 3:] / 1e6
     part1 = [part1_id, part1_ntrans, part1_ntemp, part1_ctemps,
              part1_lcu, part1_lcl, part1_crates]
@@ -88,12 +88,12 @@ def read_LAMDA(path):
     # Get the collision rates for the second partner.
     if npart == 1:
         part2_id = None
-        part2_ntrans = np.nan
-        part2_ntemp = np.nan
-        part2_ctemps = np.nan
-        part2_lcu = np.nan
-        part2_lcl = np.nan
-        part2_crates = np.nan
+        part2_ntrans = 1
+        part2_ntemp = 1
+        part2_ctemps = np.zeros(1)
+        part2_lcu = np.zeros(1).astype('int')
+        part2_lcl = np.zeros(1).astype('int')
+        part2_crates = np.zeros(1)
 
     else:
         idx = nlev + nlines + part1_ntrans
@@ -172,16 +172,16 @@ def read_RATRAN(path, debug=False):
     # Parse the data and convert to correct units.
     ra = data[columns.index('ra')]
     rb = data[columns.index('rb')]
-    nH2 = get_column('nh', data, keywords, 1e10) * 1e6
-    ne = get_column('ne', data, keywords, 0.0) * 1e6
-    nmol = get_column('nmol', data, keywords, 1e-2) * 1e6
-    tkin = get_column('tkin', data, keywords, 20.0)
-    tdust = get_column('dust', data, keywords, 20.0)
-    telec = get_column('te', data, keywords, 0.0)
-    doppb = get_column('db', data, keywords, 1.0) * 1e3
-    vr = get_column('vr', data, keywords, 0.0) * 1e3
-    vz = get_column('vz', data, keywords, 0.0) * 1e3
-    va = get_column('va', data, keywords, 0.0) * 1e3
+    nH2 = get_column('nh', data, columns, 1e10) * 1e6
+    ne = get_column('ne', data, columns, 0.0) * 1e6
+    nmol = get_column('nm', data, columns, 1e-2) * 1e6
+    tkin = get_column('tk', data, columns, 20.0)
+    tdust = get_column('td', data, columns, 20.0)
+    telec = get_column('te', data, columns, 0.0)
+    doppb = get_column('db', data, columns, 1.0) * 1e3
+    vr = get_column('vr', data, columns, 0.0) * 1e3
+    vz = get_column('vz', data, columns, 0.0) * 1e3
+    va = get_column('va', data, columns, 0.0) * 1e3
     velo = np.array([vr, vz, va])
 
     return (rmax, ncell, tcmb, g2d, ra, rb, nH2, ne, nmol, tkin, tdust,
