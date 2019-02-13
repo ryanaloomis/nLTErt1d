@@ -143,13 +143,13 @@ class simulation:
                    self.model.rb, self.model.nmol,
                    self.model.nh2, self.model.ne, self.model.doppb,
                    self.model.velocities, self.mol.lau, self.mol.lal,
-                   self.mol.lcu,
-                   self.mol.lcl, self.mol.lcu, self.mol.lcl, self.mol.down,
-                   self.mol.up, self.mol.down2, self.mol.up2, self.mol.aeinst,
-                   self.mol.beinstu, self.mol.beinstl, self.model.tcmb,
-                   self.ncell, self.nline, self.nlev, self.dust, self.knu,
-                   self.norm, self.cmb, self.nphot, self.minpop, self.outfile,
-                   simulation.eps, simulation.max_phot)
+                   self.mol.lcu, self.mol.lcl, self.mol.lcu2, self.mol.lcl2,
+                   self.mol.down, self.mol.up, self.mol.down2, self.mol.up2,
+                   self.mol.aeinst, self.mol.beinstu, self.mol.beinstl,
+                   self.model.tcmb, self.ncell, self.nline, self.nlev,
+                   self.dust, self.knu, self.norm, self.cmb, self.nphot,
+                   self.minpop, self.outfile, simulation.eps,
+                   simulation.max_phot)
 
     @staticmethod
     def planck(freq, temp):

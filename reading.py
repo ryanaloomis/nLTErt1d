@@ -91,7 +91,7 @@ def read_LAMDA(path):
         part2_ntrans = 1
         part2_ntemp = 1
         part2_ctemps = np.zeros(1)
-        part2_lcu = np.zeros(1).astype('int')
+        part2_lcu = np.ones(1).astype('int')
         part2_lcl = np.zeros(1).astype('int')
         part2_crates = np.zeros(1)
 
