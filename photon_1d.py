@@ -2,13 +2,12 @@ import numpy as np
 from simulation import *
 from model import *
 from common import *
-from numerical import *
-from time import time
 from numba import jit, prange
+
 
 @jit(nopython=True, parallel=True)
 def vfunc(v, s, rpos, phi, vphot):
-    # Get direction and position at location s along l.o.s. 
+    # Get direction and position at location s along l.o.s.
     psis = np.arctan2(s*np.sin(phi), rpos + s*np.cos(phi))
     phis = phi - psis
     r = np.sqrt(rpos**2. + s**2. + 2.*rpos*s*np.cos(phi))
@@ -24,7 +23,7 @@ def photon(fixseed, stage, ra, rb, nmol, doppb, vel_grid, lau, lal, aeinst, bein
     phot = np.zeros((nline+2, nphot))
     if stage ==1:
         np.random.seed(fixseed)
-    
+
     for iphot in range(nphot):
         tau = np.zeros(nline)
         posn = idx
@@ -37,7 +36,7 @@ def photon(fixseed, stage, ra, rb, nmol, doppb, vel_grid, lau, lal, aeinst, bein
         # homogeneously distributed over +/-2.15 * local Doppler b from
         # local velocity.
 
-        dummy = np.random.random()        
+        dummy = np.random.random()
         if (ra[idx] > 0.):
             rpos = ra[idx]*(1. + dummy*((rb[idx]/ra[idx])**3 - 1.))**(1./3.)
         else:
@@ -52,8 +51,8 @@ def photon(fixseed, stage, ra, rb, nmol, doppb, vel_grid, lau, lal, aeinst, bein
         # Propagate to edge of cloud by moving from cell edge to cell edge.
         # After the first step (i.e., after moving to the edge of cell id),
         # store ds and vfac in phot(1,iphot) and phot(2,iphot). After
-        # leaving the source, add CMB and store intensities in 
-        # phot(iline+2,iphot)        
+        # leaving the source, add CMB and store intensities in
+        # phot(iline+2,iphot)
 
         in_cloud = True
 
@@ -91,7 +90,7 @@ def photon(fixseed, stage, ra, rb, nmol, doppb, vel_grid, lau, lal, aeinst, bein
             if (nmol[posn] > eps):
                 b = doppb[posn]
                 v1 = vfunc(vel_grid[idx], 0., rpos, phi, deltav)
-                v2 = vfunc(vel_grid[idx], ds, rpos, phi, deltav)   
+                v2 = vfunc(vel_grid[idx], ds, rpos, phi, deltav)
                 nspline = np.maximum(1, int(np.abs(v1 - v2)/b))
                 vfac = 0.
                 for ispline in range(nspline):
@@ -107,10 +106,10 @@ def photon(fixseed, stage, ra, rb, nmol, doppb, vel_grid, lau, lal, aeinst, bein
                         vfac += vfacsub/naver
                 vfac /= nspline
 
-                # backwards integrate dI/ds      
+                # backwards integrate dI/ds
                 jnu = dust[:,posn]*knu[:,posn] + vfac*hpip/b*nmol[posn]*pops[lau,posn]*aeinst
                 alpha = knu[:,posn] + vfac*hpip/b*nmol[posn]*(pops[lal,posn]*beinstl - pops[lau,posn]*beinstu)
-    
+
                 snu = jnu/alpha/norm
                 snu[np.abs(alpha) < eps] = 0.
 
@@ -143,8 +142,3 @@ def photon(fixseed, stage, ra, rb, nmol, doppb, vel_grid, lau, lal, aeinst, bein
                 phot[iline+2, iphot] += np.exp(-tau[iline])*cmb[iline]
 
     return phot
-
-
-
-
-
