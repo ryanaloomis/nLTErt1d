@@ -20,11 +20,10 @@ class model:
             values = read_RATRAN(model_file)
         else:
             raise ValueError("`model_type` must be: 'ratran'.")
-
         self.rmax = values[0]
         self.ncell = values[1]
         self.tcmb = values[2]
-        self.gas2dust = values[3]
+        self.g2d = values[3]
         self.ra = values[4]
         self.rb = values[5]
         self.nh2 = values[6]
@@ -34,8 +33,12 @@ class model:
         self.tdust = values[10]
         self.telec = values[11]
         self.doppb = values[12]
-        self.velo = values[13]
+        self.velocities = values[13]
 
+        if self.tcmb < 0.0:
+            raise ValueError("Negative CMB temperature.")
+
+        '''
         # -- INCLUDE THE OLDER VERSION STUFF BELOW. -- #
         needed_cols = ['id', 'ra', 'rb', 'nh', 'tk', 'nm', 'db']
         entered_grid = False
@@ -142,8 +145,13 @@ class model:
 
         if 'va' in columns:
             self.grid['va'] = self.grid.pop('va')*1.e3      # [km/s] -> [m/s]
+        '''
 
-    def velo(self, idx, x):
+    def velo(self, idx, x=None):
+        """Velocities."""
+        return self.velocities[:, idx]
+
+    def velo_old(self, idx, x):
         v = np.zeros(3)
         if 'vr' in self.grid:
             v[0] = self.grid['vr'][idx]
