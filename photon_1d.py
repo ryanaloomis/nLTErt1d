@@ -45,7 +45,7 @@ def photon(fixseed, stage, ra, rb, nmol, doppb, vel_grid, lau, lal, aeinst, bein
         dummy = 2.*np.random.random() - 1.
         phi = np.arcsin(dummy) + np.pi/2.
 
-        vel = vel_grid[idx]
+        vel = vel_grid[:, idx]
         deltav = (np.random.random() - 0.5)*4.3*doppb[idx] + np.cos(phi)*vel[0]
 
         # Propagate to edge of cloud by moving from cell edge to cell edge.
@@ -89,19 +89,19 @@ def photon(fixseed, stage, ra, rb, nmol, doppb, vel_grid, lau, lal, aeinst, bein
             # Number of averaging steps naver=local_delta_v/local_line_width
             if (nmol[posn] > eps):
                 b = doppb[posn]
-                v1 = vfunc(vel_grid[idx], 0., rpos, phi, deltav)
-                v2 = vfunc(vel_grid[idx], ds, rpos, phi, deltav)
+                v1 = vfunc(vel_grid[:, idx], 0., rpos, phi, deltav)
+                v2 = vfunc(vel_grid[:, idx], ds, rpos, phi, deltav)
                 nspline = np.maximum(1, int(np.abs(v1 - v2)/b))
                 vfac = 0.
                 for ispline in range(nspline):
                     s1 = ds*(ispline)/nspline
                     s2 = ds*(ispline+1.)/nspline
-                    v1 = vfunc(vel_grid[idx], s1, rpos, phi, deltav)
-                    v2 = vfunc(vel_grid[idx], s2, rpos, phi, deltav)
+                    v1 = vfunc(vel_grid[:, idx], s1, rpos, phi, deltav)
+                    v2 = vfunc(vel_grid[:, idx], s2, rpos, phi, deltav)
                     naver = np.maximum(1, int(np.abs(v1 - v2)/b))
                     for iaver in range(naver):
                         s = s1 + (s2-s1)*(iaver + 0.5)/naver
-                        v = vfunc(vel_grid[idx], s, rpos, phi, deltav)
+                        v = vfunc(vel_grid[:, idx], s, rpos, phi, deltav)
                         vfacsub = np.exp(-(v/b)**2)
                         vfac += vfacsub/naver
                 vfac /= nspline
