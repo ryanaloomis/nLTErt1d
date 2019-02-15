@@ -105,7 +105,7 @@ def read_LAMDA(path):
         part2_crates = np.array(part2_crates).astype('float')
         if part2_crates.shape != (part2_ntrans, part2_ntemp + 3):
             raise Exception('Unexpected number of collision rates.')
-        part2_lcu, part2_lcl = part2_crates[1:3].astype('int') - 1
+        part2_lcu, part2_lcl = part2_crates[:, 1:3].T.astype('int') - 1
         part2_crates = part2_crates[:, 3:] / 1e6
     part2 = [part2_id, part2_ntrans, part2_ntemp, part2_ctemps,
              part2_lcu, part2_lcl, part2_crates]

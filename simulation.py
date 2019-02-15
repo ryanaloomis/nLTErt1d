@@ -19,7 +19,7 @@ class simulation:
 
     def __init__(self, source, outfile, molfile, goalsnr, nphot, kappa=None,
                  tnorm=2.735, velocity_function=None, seed=1971, minpop=1e-4,
-                 fixset=1.e-6, debug=True):
+                 fixset=1.e-6, blending=False, debug=True):
         """
         Initlize a simulation.
 
@@ -64,6 +64,7 @@ class simulation:
         self.seed = seed
         self.minpop = minpop
         self.fixset = fixset
+        self.blending = blending
         self.debug = debug
 
         t0 = time()
@@ -84,11 +85,10 @@ class simulation:
         if self.debug:
             print('[debug] reading molecular data file')
 
-        # self.mol = molecule(self, self.molfile, debug)
         try:
-            self.mol = molecule(self.molfile)
+            self.mol = molecule(self, self.molfile)
         except:
-            self.mol = molecule(self, self.molfile, debug)
+            raise Exception("Couldn't parse molecular data.")
 
         self.nlev = self.mol.nlev
         self.nline = self.mol.nline
@@ -146,6 +146,7 @@ class simulation:
                    self.mol.lcu, self.mol.lcl, self.mol.lcu2, self.mol.lcl2,
                    self.mol.down, self.mol.up, self.mol.down2, self.mol.up2,
                    self.mol.aeinst, self.mol.beinstu, self.mol.beinstl,
+                   self.blending, self.mol.blends,
                    self.model.tcmb, self.ncell, self.nline, self.nlev,
                    self.dust, self.knu, self.norm, self.cmb, self.nphot,
                    self.minpop, self.outfile, simulation.eps,
@@ -261,8 +262,9 @@ class simulation:
 @jit()
 def _calc_pops(fixseed, fixset, goalsnr, part2id, ra, rb, nmol, nh2, ne, doppb,
                vel_grid, lau, lal, lcu, lcl, lcu2, lcl2, down, up, down2, up2,
-               aeinst, beinstu, beinstl, tcmb, ncell, nline, nlev, dust, knu,
-               norm, cmb, nphot, minpop, outfile, eps, max_phot):
+               aeinst, beinstu, beinstl, blending, blends, tcmb, ncell, nline, 
+               nlev, dust, knu, norm, cmb, nphot, minpop, outfile, eps, 
+               max_phot):
     """
     Docstring coming.
     """
@@ -301,12 +303,12 @@ def _calc_pops(fixseed, fixset, goalsnr, part2id, ra, rb, nmol, nh2, ne, doppb,
 
                 if (nh2[idx] >= eps):
                     #t0 = time()
-                    phot = photon(fixseed, stage, ra, rb, nmol, doppb, vel_grid, lau, lal, aeinst, beinstu, beinstl, tcmb, ncell, nline, pops, dust, knu, norm, cmb, nphot[idx], idx)
+                    phot = photon(fixseed, stage, ra, rb, nmol, doppb, vel_grid, lau, lal, aeinst, beinstu, beinstl, blending, blends, tcmb, ncell, nline, pops, dust, knu, norm, cmb, nphot[idx], idx)
                     #t1 = time()
                     #print("photon time = " + str(t1-t0))
 
                     #t0 = time()
-                    staterr, pops = stateq(part2id, phot, nmol, nh2, ne, doppb, lau, lal, lcu, lcl, lcu2, lcl2, down, up, down2, up2, aeinst, beinstu, beinstl, nline, nlev, pops, dust, knu, norm, minpop, idx)
+                    staterr, pops = stateq(part2id, phot, nmol, nh2, ne, doppb, lau, lal, lcu, lcl, lcu2, lcl2, down, up, down2, up2, aeinst, beinstu, beinstl, blending, blends, nline, nlev, pops, dust, knu, norm, minpop, idx)
                     #t1 = time()
                     #print("stateq time = " + str(t1-t0))
 
