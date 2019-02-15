@@ -5,7 +5,7 @@ from simulation import simulation
 
 def amc(source, outfile, molfile, goalsnr, nphot, kappa='jena,thin,e5',
         tnorm=2.735, velocity_function=None, seed=1978, minpop=1e-4,
-        fixset=1e-6, debug=False):
+        fixset=1e-6, blending=False, debug=False):
     """
     This is the whole simulation.
 
@@ -41,6 +41,7 @@ def amc(source, outfile, molfile, goalsnr, nphot, kappa='jena,thin,e5',
         seed (optional[int]): Seed for the random number generators.
         minpop (optional[float]): Minimum population for each energy level.
         fixset (optional [float]): The smallest number to be counted.
+        blending (optional [bool]): Whether to include line blending or not.
         debug (optional[bool]): Pring debugging messages.
     """
     print('AMC: ')
@@ -51,10 +52,11 @@ def amc(source, outfile, molfile, goalsnr, nphot, kappa='jena,thin,e5',
     sim = simulation(source=source, outfile=outfile, molfile=molfile,
                      goalsnr=goalsnr, nphot=nphot, kappa=kappa, tnorm=tnorm,
                      velocity_function=velocity_function, seed=seed,
-                     minpop=minpop, fixset=fixset, debug=debug)
+                     minpop=minpop, fixset=fixset, blending=blending,
+                     debug=debug)
 
     # Calculate the level populations
     sim.calc_pops()
 
 if __name__ == "__main__":
-    amc('example.mdl', 'example.pop', 'hco+.dat', 20, 1000)
+    amc('example.mdl', 'example.pop', 'hco+.dat', 20, 200, blending=True)

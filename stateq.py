@@ -5,7 +5,7 @@ from numba import jit, prange
 
 
 @jit(nopython=True, parallel=True)
-def getjbar(ds, vfac, vsum, phot, nmol, doppb, lau, lal, aeinst, beinstu, beinstl, nline, pops, jnu_dust, alpha_dust, norm, idx):
+def getjbar(ds, vfac, vsum, phot, nmol, doppb, lau, lal, aeinst, beinstu, beinstl, blending, blends, nline, pops, jnu_dust, alpha_dust, norm, idx):
     """
     Set the jbar value for the given radial index.
 
@@ -23,7 +23,7 @@ def getjbar(ds, vfac, vsum, phot, nmol, doppb, lau, lal, aeinst, beinstu, beinst
     alpha_precalc = 1./doppb[idx]*hpip*nmol[idx]*((pops[lal, idx])*beinstl - (pops[lau,idx])*beinstu)
 
     for iline in prange(nline):
-        jbar_temp = 0.
+        jbar_temp = 0
         for iphot in prange(ds.shape[0]):
             jnu = jnu_dust[iline] + vfac[iphot]*jnu_precalc[iline]
             alpha = alpha_dust[iline] + vfac[iphot]*alpha_precalc[iline]
@@ -40,6 +40,31 @@ def getjbar(ds, vfac, vsum, phot, nmol, doppb, lau, lal, aeinst, beinstu, beinst
             # Add intensity along line segment
             jbar_temp += vfac[iphot]*(np.exp(-tau)*phot[iline+2, iphot] + (1 - np.exp(-tau))*snu)
         jbar[iline] = jbar_temp
+
+    
+    # Line blending contribution
+    if blending:
+        for iblend in range(blends.shape[0]):
+            bjnu = 0.
+            balpha = 0.
+            iline = int(blends[iblend,0])
+            jline = int(blends[iblend,1])
+            for iphot in range(ds.shape[0]):
+                bjnu = vfac[iphot]*jnu_precalc[jline]
+                balpha = vfac[iphot]*alpha_precalc[jline]
+
+                if (np.abs(balpha) < eps):
+                    bsnu = 0.
+                else:
+                    bsnu = bjnu/balpha/norm[jline]
+
+                btau = balpha*ds[iphot]
+                if (btau < negtaulim): # Limit negative opacity
+                    btau = negtaulim
+
+                # Add intensity along line segment
+                jbar[iline] += vfac[iphot]*(np.exp(-btau)*phot[iline+2, iphot] + (1 - np.exp(-btau))*bsnu)
+    
 
     # Normalize and scale by norm and vsum
     if (vsum > 0.):
@@ -114,7 +139,7 @@ def solvematrix(ratem, newpop):
 
 
 @jit(nopython=True)
-def stateq(part2id, phot, nmol, nh2, ne, doppb, lau, lal, lcu, lcl, lcu2, lcl2, down, up, down2, up2, aeinst, beinstu, beinstl, nline, nlev, pops, dust, knu, norm, minpop, idx, miniter=10, maxiter=100, tol=1e0-6):
+def stateq(part2id, phot, nmol, nh2, ne, doppb, lau, lal, lcu, lcl, lcu2, lcl2, down, up, down2, up2, aeinst, beinstu, beinstl, blending, blends, nline, nlev, pops, dust, knu, norm, minpop, idx, miniter=10, maxiter=100, tol=1e0-6):
     """
     Iterate for convergence between radiation field and excitation.
 
@@ -141,7 +166,7 @@ def stateq(part2id, phot, nmol, nh2, ne, doppb, lau, lal, lcu, lcl, lcu2, lcl2, 
 
     # Get updated jbar.
     for iter in range(maxiter):
-        jbar = getjbar(ds, vfac, vsum, phot, nmol, doppb, lau, lal, aeinst, beinstu, beinstl, nline, pops, jnu_dust, alpha_dust, norm, idx)
+        jbar = getjbar(ds, vfac, vsum, phot, nmol, doppb, lau, lal, aeinst, beinstu, beinstl, blending, blends, nline, pops, jnu_dust, alpha_dust, norm, idx)
 
         newpop = np.zeros(nlev + 1)
         newpop[-1] = 1.

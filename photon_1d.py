@@ -17,9 +17,29 @@ def vfunc(v, s, rpos, phi, vphot):
     vfunc = vphot - np.cos(phis)*v[0]
     return vfunc
 
+@jit(nopython=True, fastmath=True, parallel=True)
+def calcLineAmp(b, vel_grid, rpos, ds, phi, deltav, idx):
+    v1 = vfunc(vel_grid[:, idx], 0., rpos, phi, deltav)
+    v2 = vfunc(vel_grid[:, idx], ds, rpos, phi, deltav)
+    nspline = np.maximum(1, int(np.abs(v1 - v2)/b))
+    vfac = 0.
+    for ispline in range(nspline):
+        s1 = ds*(ispline)/nspline
+        s2 = ds*(ispline+1.)/nspline
+        v1 = vfunc(vel_grid[:, idx], s1, rpos, phi, deltav)
+        v2 = vfunc(vel_grid[:, idx], s2, rpos, phi, deltav)
+        naver = np.maximum(1, int(np.abs(v1 - v2)/b))
+        for iaver in range(naver):
+            s = s1 + (s2-s1)*(iaver + 0.5)/naver
+            v = vfunc(vel_grid[:, idx], s, rpos, phi, deltav)
+            vfacsub = np.exp(-(v/b)**2)
+            vfac += vfacsub/naver
+    vfac /= nspline
+    return vfac
 
-@jit(nopython=True)
-def photon(fixseed, stage, ra, rb, nmol, doppb, vel_grid, lau, lal, aeinst, beinstu, beinstl, tcmb, ncell, nline, pops, dust, knu, norm, cmb, nphot, idx):
+
+@jit(nopython=True, fastmath=True)
+def photon(fixseed, stage, ra, rb, nmol, doppb, vel_grid, lau, lal, aeinst, beinstu, beinstl, blending, blends, tcmb, ncell, nline, pops, dust, knu, norm, cmb, nphot, idx):
     phot = np.zeros((nline+2, nphot))
     if stage ==1:
         np.random.seed(fixseed)
@@ -89,22 +109,7 @@ def photon(fixseed, stage, ra, rb, nmol, doppb, vel_grid, lau, lal, aeinst, bein
             # Number of averaging steps naver=local_delta_v/local_line_width
             if (nmol[posn] > eps):
                 b = doppb[posn]
-                v1 = vfunc(vel_grid[:, idx], 0., rpos, phi, deltav)
-                v2 = vfunc(vel_grid[:, idx], ds, rpos, phi, deltav)
-                nspline = np.maximum(1, int(np.abs(v1 - v2)/b))
-                vfac = 0.
-                for ispline in range(nspline):
-                    s1 = ds*(ispline)/nspline
-                    s2 = ds*(ispline+1.)/nspline
-                    v1 = vfunc(vel_grid[:, idx], s1, rpos, phi, deltav)
-                    v2 = vfunc(vel_grid[:, idx], s2, rpos, phi, deltav)
-                    naver = np.maximum(1, int(np.abs(v1 - v2)/b))
-                    for iaver in range(naver):
-                        s = s1 + (s2-s1)*(iaver + 0.5)/naver
-                        v = vfunc(vel_grid[:, idx], s, rpos, phi, deltav)
-                        vfacsub = np.exp(-(v/b)**2)
-                        vfac += vfacsub/naver
-                vfac /= nspline
+                vfac = calcLineAmp(b, vel_grid, rpos, ds, phi, deltav, idx)
 
                 # backwards integrate dI/ds
                 jnu = dust[:,posn]*knu[:,posn] + vfac*hpip/b*nmol[posn]*pops[lau,posn]*aeinst
@@ -120,6 +125,38 @@ def photon(fixseed, stage, ra, rb, nmol, doppb, vel_grid, lau, lal, aeinst, bein
                     phot[2:, iphot] += np.exp(-tau)*(1. - np.exp(-dtau))*snu
                     tau += dtau
                     tau[tau < negtaulim] = negtaulim
+
+                
+                # Line blending step - note that this is not vectorized as the previous calculations have been
+                if blending:
+                    for iblend in range(blends.shape[0]):
+                        bjnu = 0.
+                        balpha = 0.
+                        iline = int(blends[iblend,0])
+                        jline = int(blends[iblend,1])
+                        bdeltav = blends[iblend,2]
+
+                        velproj = deltav - bdeltav
+                        bvfac = calcLineAmp(b, vel_grid, rpos, ds, phi, velproj, idx)
+
+                        bjnu = bvfac*hpip/b*nmol[posn]*pops[lau,posn][jline]*aeinst[jline]
+                        balpha = bvfac*hpip/b*nmol[posn]*(pops[lal,posn][jline]*beinstl[jline] - pops[lau,posn][jline]*beinstu[jline])
+
+                        if np.abs(balpha) < eps: 
+                            bsnu = 0.
+                        else:                            
+                            bsnu = bjnu/balpha/norm[jline]                        
+
+                        bdtau = balpha*ds
+                        if bdtau < negtaulim: bdtau = negtaulim                        
+
+                        if not firststep:
+                            #if (np.exp(-tau[iline])*(1. - np.exp(-bdtau))*bsnu > 0.) :
+                            #    print(phot[2 + iline, iphot], np.exp(-tau[iline])*(1. - np.exp(-bdtau))*bsnu)
+                            phot[2 + iline, iphot] += np.exp(-tau[iline])*(1. - np.exp(-bdtau))*bsnu
+                            tau[iline] += bdtau
+                            tau[tau < negtaulim] = negtaulim
+                
 
                 if firststep:
                     phot[0, iphot] = ds

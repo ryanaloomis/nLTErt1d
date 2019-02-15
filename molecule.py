@@ -6,7 +6,7 @@ import scipy.constants as sc
 
 class molecule:
 
-    def __init__(self, molfile):
+    def __init__(self, sim, molfile):
         """
         Initialize the molecule class.
 
@@ -29,6 +29,32 @@ class molecule:
         self.up, self.down = None, None
         self.up2, self.down2 = None, None
 
+        self.find_blends(sim)
+
+
+    def find_blends(self, sim):
+        """
+        Find all line blends and record them
+        """
+        
+        self.blends = []
+        for iline in range(self.nline):
+            for jline in range(self.nline):
+                deltav = (self.freq[jline] - self.freq[iline])*sc.c/self.freq[iline]
+                if (np.abs(deltav) < 1.e3) and (iline != jline): #1 km/s is limit for blend #TODO reconsider this value
+                    self.blends.append([iline, jline, deltav])
+        self.blends = np.array(self.blends)
+        
+        if (self.blends.shape[0] > 0) and (sim.blending == False):
+            print("WARNING: Blends found but line blending is turned off. You may want to turn it on.")
+
+        if self.blends.shape[0] == 0:
+            if sim.blending == True:
+                print("Blending was turned on but no blends found. Turning blending off.")
+            self.blends = np.array([np.zeros(3)]) # doing this to keep the numba compiler happy
+            sim.blending = False
+
+
     def set_rates(self, Tkin):
         """
         Calculate the upward and downward rates in all empty cells. Interpolate
@@ -46,7 +72,10 @@ class molecule:
 
         # First collision partner.
         dE = self.eterm[self.lcu] - self.eterm[self.lcl]
-        down1 = interp1d(self.coll_temps, self.colld)(Tkin)
+        try:
+            down1 = interp1d(self.coll_temps, self.colld, fill_value="extrapolate")(Tkin)
+        except:
+            print("Warning: model grid includes cells with higher temperature than collisional data. Attempting to extrapolate and proceed.")
         up1 = 100. * sc.h * sc.c * dE[:, None] / sc.k / Tkin[None, :]
         up1 = np.exp(-up1)
         up1 *= (self.gstat[self.lcu] / self.gstat[self.lcl])[:, None]
@@ -58,7 +87,10 @@ class molecule:
             up2 = np.zeros(up1.shape)
         else:
             dE2 = self.eterm[self.lcu2] - self.eterm[self.lcl2]
-            down2 = interp1d(self.coll_temps2, self.colld2)(Tkin)
+            try:
+                down2 = interp1d(self.coll_temps2, self.colld2, fill_value="extrapolate")(Tkin)
+            except:
+                print("Warning: model grid includes cells with higher temperature than collisional data. Attempting to extrapolate and proceed.")
             up2 = 100. * sc.h * sc.c * dE2[:, None] / sc.k / Tkin[None, :]
             up2 = np.exp(-up2)
             up2 *= (self.gstat[self.lcu2] / self.gstat[self.lcl2])[:, None]
