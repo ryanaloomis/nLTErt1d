@@ -4,7 +4,7 @@ from molecule import molecule
 from photon_1d import photon
 from stateq import stateq
 from losintegr import losintegr
-# from blowpops import blowpops
+from blowpops import blowpops
 from time import time
 import scipy.constants as sc
 from numba import jit
@@ -133,9 +133,12 @@ class simulation:
         t1 = time()
         print("Set up took %.1f ms." % ((t1 - t0) * 1e3))
 
+
+
     def calc_pops(self):
         """Wrapper for the calculation of populations function."""
-        self.pops = _calc_pops(self.fixseed, self.fixset, self.goalsnr,
+        self.pops, self.snr, self.percent = _calc_pops(self.fixseed, 
+                       self.fixset, self.goalsnr,
                        bool(self.mol.part2id), self.model.ra,
                        self.model.rb, self.model.nmol,
                        self.model.nh2, self.model.ne, self.model.doppb,
@@ -149,6 +152,11 @@ class simulation:
                        self.minpop, self.outfile, simulation.eps,
                        simulation.max_phot)
 
+        blowpops(self.outfile, self, self.snr, self.percent)
+        print('AMC: Written output to ' + self.outfile)
+
+
+
     def raytrace(self):
         """Wrapper for the raytracing function."""
         intens, tau = _raytrace(self.model.rmax, self.model.ra,
@@ -161,6 +169,8 @@ class simulation:
                         self.dust, self.knu, self.norm, self.cmb,
                         self.nchan, int(self.nchan/2.) + 1, self.velres, self.rt_lines)
         return intens, tau
+
+
 
     @staticmethod
     def planck(freq, temp):
@@ -178,6 +188,8 @@ class simulation:
         Bnu = 2. * sc.h * freq**3 * sc.c**-2
         Bnu /= np.exp(sc.h * freq / (sc.k * temp)) - 1.0
         return np.where(temp >= simulation.eps, Bnu, 0.0)
+
+
 
     @staticmethod
     def generate_kappa(kappa_params=None):
@@ -267,6 +279,7 @@ class simulation:
         sys.path.append(file_directory)
         exec('from %s import %s as velo' % (file_name, function_name))
         return velo
+
 
 
 @jit()
@@ -365,7 +378,6 @@ def _calc_pops(fixseed, fixset, goalsnr, part2id, ra, rb, nmol, nh2, ne, doppb,
 
         if (stage == 1):
             percent = float(conv)/ncell*100.
-            # blowpops(outfile, sim, snr, percent)
             print('AMC: FIXSET fractional error' + " " + str(1./minsnr) + ', ' +
                   str(percent) + '% converged')
             if (conv == ncell):
@@ -384,7 +396,6 @@ def _calc_pops(fixseed, fixset, goalsnr, part2id, ra, rb, nmol, nh2, ne, doppb,
             else:
                 if (exceed < ncell):
                     percent = float(conv)/ncell*100.
-                    #blowpops(outfile, sim, snr, percent)
                     print('AMC: ' + str(minsnr) + '  |  ' + str(percent) + '% |  ' + str(totphot) + '  |  ' + str(totphot2))
                     # Next iteration
                     continue
@@ -397,10 +408,8 @@ def _calc_pops(fixseed, fixset, goalsnr, part2id, ra, rb, nmol, nh2, ne, doppb,
     # Convergence reached (or bailed out)
     print('AMC: ' + str(minsnr) + '  |  ' + str(percent) + '% |  ' + str(totphot) + '  |  converged')
     print('AMC:')
-    #blowpops(outfile, sim, snr, percent)
-    print('AMC: Written output to ' + str(outfile))
 
-    return pops
+    return pops, snr, percent
 
 
 def _raytrace(rmax, ra, rb, nmol, nh2, doppb, vel_grid, lau, lal, aeinst, beinstu, beinstl, blending, blends, tcmb, ncell, pops, dust, knu, norm, cmb, nchan, vcen, velres, rt_lines):

@@ -3,7 +3,7 @@ import matplotlib.pylab as pl
 
 if __name__ == "__main__":
     # Set up simulation
-    sim = simulation('example.mdl', 'example.pop', 'hco+.dat', 20, 200, blending=True)
+    sim = simulation('example.mdl', 'example.pop', 'hco+.dat', 20, 1000, kappa='jena,thin,e5', blending=False)
 
     # Calculate the level populations
     sim.calc_pops()
