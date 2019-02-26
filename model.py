@@ -3,7 +3,7 @@ import numpy as np
 
 class model:
 
-    def __init__(self, model_file, model_type='ratran', debug=False):
+    def __init__(self, model_file, model_type='ratran'):
         """
         Initialise the model grid.
 
@@ -11,7 +11,6 @@ class model:
             model_file (str): Relative path to the model input file.
             model_type (optional[str]): Type of model format. Allowed values
                 are currently only 'ratran'.
-            debug (optional[bool]): If True, pring debug messages.
         """
 
         model_type = model_type.lower()
