@@ -3,11 +3,12 @@ from model import model
 from molecule import molecule
 from photon_1d import photon
 from stateq import stateq
-# from blowpops import blowpops
+from losintegr import losintegr
+from blowpops import blowpops
 from time import time
 import scipy.constants as sc
 from numba import jit
-
+from common import *
 
 class simulation:
     """The main simulation class."""
@@ -19,7 +20,7 @@ class simulation:
 
     def __init__(self, source, outfile, molfile, goalsnr, nphot, kappa=None,
                  tnorm=2.735, velocity_function=None, seed=1971, minpop=1e-4,
-                 fixset=1.e-6, blending=False, debug=True):
+                 fixset=1.e-6, blending=False, nchan=50, rt_lines=[0,1,2], velres=0.1):
         """
         Initlize a simulation.
 
@@ -50,7 +51,10 @@ class simulation:
             seed (optional[int]): Seed for the random number generators.
             minpop (optional[float]): Minimum population for each energy level.
             fixset (optional [float]): The smallest number to be counted.
-            debug (optional[bool]): Pring debugging messages.
+            blending (optional [bool]): Whether to include line blending or not.
+            nchan (optional [int]): Number of channels per trans for raytracing.
+            rt_lines (optional [int list]): List of transitions to raytrace.
+            velres (optional [float]): Channel res for raytracing (km/s). 
         """
 
         self.source = source
@@ -65,26 +69,20 @@ class simulation:
         self.minpop = minpop
         self.fixset = fixset
         self.blending = blending
-        self.debug = debug
+        self.nchan = nchan
+        self.rt_lines = rt_lines
+        self.velres = velres*1000. # convert to m/s
 
         t0 = time()
         # Read in the source model (default is RATRAN).
-        if self.debug:
-            print('[debug] reading in source model')
-        self.model = model(self.source, 'ratran', self.debug)
+        self.model = model(self.source, 'ratran')
         self.ncell = self.model.ncell
 
         # Have user input velocity function.
-        print(velocity_function)
         if velocity_function is not None:
-            if self.debug:
-                print("[debug] Importing user velocity function.")
             self.model.velo = simulation.import_velocity(velocity_function)
 
         # Read in the molfile
-        if self.debug:
-            print('[debug] reading molecular data file')
-
         try:
             self.mol = molecule(self, self.molfile)
         except:
@@ -124,7 +122,7 @@ class simulation:
         for l in range(self.nline):
             for i in range(self.ncell):
                 self.knu[l, i] = self.kappa(i, self.mol.freq[l]) * 2.4 * sc.m_p
-                self.knu[l, i] /= self.model.g2d * self.model.nh2[i]
+                self.knu[l, i] *= self.model.nh2[i] / self.model.g2d
                 self.dust[l, i] = simulation.planck(self.mol.freq[l],
                                                     self.model.tdust[i])
 
@@ -136,21 +134,50 @@ class simulation:
         t1 = time()
         print("Set up took %.1f ms." % ((t1 - t0) * 1e3))
 
+
+
     def calc_pops(self):
         """Wrapper for the calculation of populations function."""
-        _calc_pops(self.fixseed, self.fixset, self.goalsnr,
-                   bool(self.mol.part2id), self.model.ra,
-                   self.model.rb, self.model.nmol,
-                   self.model.nh2, self.model.ne, self.model.doppb,
-                   self.model.velocities, self.mol.lau, self.mol.lal,
-                   self.mol.lcu, self.mol.lcl, self.mol.lcu2, self.mol.lcl2,
-                   self.mol.down, self.mol.up, self.mol.down2, self.mol.up2,
-                   self.mol.aeinst, self.mol.beinstu, self.mol.beinstl,
-                   self.blending, self.mol.blends,
-                   self.model.tcmb, self.ncell, self.nline, self.nlev,
-                   self.dust, self.knu, self.norm, self.cmb, self.nphot,
-                   self.minpop, self.outfile, simulation.eps,
-                   simulation.max_phot)
+        self.pops, self.snr, self.percent = _calc_pops(self.fixseed, 
+                       self.fixset, self.goalsnr,
+                       bool(self.mol.part2id), self.model.ra,
+                       self.model.rb, self.model.nmol,
+                       self.model.nh2, self.model.ne, self.model.doppb,
+                       self.model.velocities, self.mol.lau, self.mol.lal,
+                       self.mol.lcu, self.mol.lcl, self.mol.lcu2, self.mol.lcl2,
+                       self.mol.down, self.mol.up, self.mol.down2, self.mol.up2,
+                       self.mol.aeinst, self.mol.beinstu, self.mol.beinstl,
+                       self.blending, self.mol.blends,
+                       self.model.tcmb, self.ncell, self.nline, self.nlev, self.ntrans, self.ntrans2,
+                       self.dust, self.knu, self.norm, self.cmb, self.nphot,
+                       self.minpop, self.outfile, simulation.eps,
+                       simulation.max_phot)
+
+        blowpops(self.outfile, self, self.snr, self.percent)
+        print('AMC: Written output to ' + self.outfile)
+
+
+
+    def raytrace(self):
+        """Wrapper for the raytracing function."""
+        intens, tau = _raytrace(self.model.rmax, self.model.ra,
+                        self.model.rb, self.model.nmol,
+                        self.model.nh2, self.model.doppb,
+                        self.model.velocities, self.mol.lau, self.mol.lal,
+                        self.mol.aeinst, self.mol.beinstu, self.mol.beinstl,
+                        self.blending, self.mol.blends,
+                        self.model.tcmb, self.ncell, self.pops,
+                        self.dust, self.knu, self.norm, self.cmb,
+                        self.nchan, int(self.nchan/2.), self.velres, self.rt_lines)
+
+        # TODO make this flexible for other units
+        # Convert to K
+        ucon = (sc.c/self.mol.freq[self.rt_lines])**2./2./kboltz
+        intens = intens*ucon[:,np.newaxis]*self.norm[self.rt_lines][:,np.newaxis]
+
+        return intens, tau
+
+
 
     @staticmethod
     def planck(freq, temp):
@@ -168,6 +195,8 @@ class simulation:
         Bnu = 2. * sc.h * freq**3 * sc.c**-2
         Bnu /= np.exp(sc.h * freq / (sc.k * temp)) - 1.0
         return np.where(temp >= simulation.eps, Bnu, 0.0)
+
+
 
     @staticmethod
     def generate_kappa(kappa_params=None):
@@ -259,12 +288,14 @@ class simulation:
         return velo
 
 
+
 @jit()
 def _calc_pops(fixseed, fixset, goalsnr, part2id, ra, rb, nmol, nh2, ne, doppb,
                vel_grid, lau, lal, lcu, lcl, lcu2, lcl2, down, up, down2, up2,
                aeinst, beinstu, beinstl, blending, blends, tcmb, ncell, nline, 
-               nlev, dust, knu, norm, cmb, nphot, minpop, outfile, eps, 
+               nlev, ntrans, ntrans2, dust, knu, norm, cmb, nphot, minpop, outfile, eps, 
                max_phot):
+    # TODO
     """
     Docstring coming.
     """
@@ -306,9 +337,8 @@ def _calc_pops(fixseed, fixset, goalsnr, part2id, ra, rb, nmol, nh2, ne, doppb,
                     phot = photon(fixseed, stage, ra, rb, nmol, doppb, vel_grid, lau, lal, aeinst, beinstu, beinstl, blending, blends, tcmb, ncell, nline, pops, dust, knu, norm, cmb, nphot[idx], idx)
                     #t1 = time()
                     #print("photon time = " + str(t1-t0))
-
                     #t0 = time()
-                    staterr, pops = stateq(part2id, phot, nmol, nh2, ne, doppb, lau, lal, lcu, lcl, lcu2, lcl2, down, up, down2, up2, aeinst, beinstu, beinstl, blending, blends, nline, nlev, pops, dust, knu, norm, minpop, idx)
+                    staterr, pops = stateq(part2id, phot, nmol, nh2, ne, doppb, lau, lal, lcu, lcl, lcu2, lcl2, down, up, down2, up2, aeinst, beinstu, beinstl, blending, blends, nline, nlev, ntrans, ntrans2, pops, dust, knu, norm, minpop, idx)
                     #t1 = time()
                     #print("stateq time = " + str(t1-t0))
 
@@ -354,7 +384,6 @@ def _calc_pops(fixseed, fixset, goalsnr, part2id, ra, rb, nmol, nh2, ne, doppb,
 
         if (stage == 1):
             percent = float(conv)/ncell*100.
-            # blowpops(outfile, sim, snr, percent)
             print('AMC: FIXSET fractional error' + " " + str(1./minsnr) + ', ' +
                   str(percent) + '% converged')
             if (conv == ncell):
@@ -373,7 +402,6 @@ def _calc_pops(fixseed, fixset, goalsnr, part2id, ra, rb, nmol, nh2, ne, doppb,
             else:
                 if (exceed < ncell):
                     percent = float(conv)/ncell*100.
-                    #blowpops(outfile, sim, snr, percent)
                     print('AMC: ' + str(minsnr) + '  |  ' + str(percent) + '% |  ' + str(totphot) + '  |  ' + str(totphot2))
                     # Next iteration
                     continue
@@ -386,5 +414,14 @@ def _calc_pops(fixseed, fixset, goalsnr, part2id, ra, rb, nmol, nh2, ne, doppb,
     # Convergence reached (or bailed out)
     print('AMC: ' + str(minsnr) + '  |  ' + str(percent) + '% |  ' + str(totphot) + '  |  converged')
     print('AMC:')
-    #blowpops(outfile, sim, snr, percent)
-    print('AMC: Written output to ' + str(outfile))
+
+    return pops, snr, percent
+
+
+def _raytrace(rmax, ra, rb, nmol, nh2, doppb, vel_grid, lau, lal, aeinst, beinstu, beinstl, blending, blends, tcmb, ncell, pops, dust, knu, norm, cmb, nchan, vcen, velres, rt_lines):
+    # TODO
+    """
+    Docstring coming.
+    """
+    intens, tau = losintegr(rmax, ra, rb, nmol, nh2, doppb, vel_grid, lau, lal, aeinst, beinstu, beinstl, blending, blends, tcmb, ncell, pops, dust, knu, norm, cmb, nchan, vcen, velres, rt_lines)
+    return intens, tau
