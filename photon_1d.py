@@ -5,7 +5,7 @@ from common import *
 from numba import jit, prange
 
 
-@jit(nopython=True, parallel=True)
+@jit(nopython=True)
 def vfunc(v, s, rpos, phi, vphot):
     # Get direction and position at location s along l.o.s.
     psis = np.arctan2(s*np.sin(phi), rpos + s*np.cos(phi))
@@ -17,7 +17,7 @@ def vfunc(v, s, rpos, phi, vphot):
     vfunc = vphot - np.cos(phis)*v[0]
     return vfunc
 
-@jit(nopython=True, fastmath=True, parallel=True)
+@jit(nopython=True)
 def calcLineAmp(b, vel_grid, rpos, ds, phi, deltav, idx):
     v1 = vfunc(vel_grid[:, idx], 0., rpos, phi, deltav)
     v2 = vfunc(vel_grid[:, idx], ds, rpos, phi, deltav)
@@ -38,7 +38,7 @@ def calcLineAmp(b, vel_grid, rpos, ds, phi, deltav, idx):
     return vfac
 
 
-@jit(nopython=True, fastmath=True)
+@jit(nopython=True)
 def photon(fixseed, stage, ra, rb, nmol, doppb, vel_grid, lau, lal, aeinst, beinstu, beinstl, blending, blends, tcmb, ncell, nline, pops, dust, knu, norm, cmb, nphot, idx):
     phot = np.zeros((nline+2, nphot))
     if stage ==1:

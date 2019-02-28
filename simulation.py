@@ -121,7 +121,7 @@ class simulation:
         for l in range(self.nline):
             for i in range(self.ncell):
                 self.knu[l, i] = self.kappa(i, self.mol.freq[l]) * 2.4 * sc.m_p
-                self.knu[l, i] /= self.model.g2d * self.model.nh2[i]
+                self.knu[l, i] *= self.model.nh2[i] / self.model.g2d
                 self.dust[l, i] = simulation.planck(self.mol.freq[l],
                                                     self.model.tdust[i])
 
@@ -147,7 +147,7 @@ class simulation:
                        self.mol.down, self.mol.up, self.mol.down2, self.mol.up2,
                        self.mol.aeinst, self.mol.beinstu, self.mol.beinstl,
                        self.blending, self.mol.blends,
-                       self.model.tcmb, self.ncell, self.nline, self.nlev,
+                       self.model.tcmb, self.ncell, self.nline, self.nlev, self.ntrans, self.ntrans2,
                        self.dust, self.knu, self.norm, self.cmb, self.nphot,
                        self.minpop, self.outfile, simulation.eps,
                        simulation.max_phot)
@@ -286,7 +286,7 @@ class simulation:
 def _calc_pops(fixseed, fixset, goalsnr, part2id, ra, rb, nmol, nh2, ne, doppb,
                vel_grid, lau, lal, lcu, lcl, lcu2, lcl2, down, up, down2, up2,
                aeinst, beinstu, beinstl, blending, blends, tcmb, ncell, nline, 
-               nlev, dust, knu, norm, cmb, nphot, minpop, outfile, eps, 
+               nlev, ntrans, ntrans2, dust, knu, norm, cmb, nphot, minpop, outfile, eps, 
                max_phot):
     # TODO
     """
@@ -330,9 +330,8 @@ def _calc_pops(fixseed, fixset, goalsnr, part2id, ra, rb, nmol, nh2, ne, doppb,
                     phot = photon(fixseed, stage, ra, rb, nmol, doppb, vel_grid, lau, lal, aeinst, beinstu, beinstl, blending, blends, tcmb, ncell, nline, pops, dust, knu, norm, cmb, nphot[idx], idx)
                     #t1 = time()
                     #print("photon time = " + str(t1-t0))
-
                     #t0 = time()
-                    staterr, pops = stateq(part2id, phot, nmol, nh2, ne, doppb, lau, lal, lcu, lcl, lcu2, lcl2, down, up, down2, up2, aeinst, beinstu, beinstl, blending, blends, nline, nlev, pops, dust, knu, norm, minpop, idx)
+                    staterr, pops = stateq(part2id, phot, nmol, nh2, ne, doppb, lau, lal, lcu, lcl, lcu2, lcl2, down, up, down2, up2, aeinst, beinstu, beinstl, blending, blends, nline, nlev, ntrans, ntrans2, pops, dust, knu, norm, minpop, idx)
                     #t1 = time()
                     #print("stateq time = " + str(t1-t0))
 

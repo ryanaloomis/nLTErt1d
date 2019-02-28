@@ -75,7 +75,7 @@ def getjbar(ds, vfac, vsum, phot, nmol, doppb, lau, lal, aeinst, beinstu, beinst
 
 @jit(nopython=True, parallel=True)
 def getmatrix(part2id, phot, nh2, ne, lau, lal, lcu, lcl, lcu2, lcl2, down, up,
-              down2, up2, aeinst, beinstu, beinstl, nline, nlev, jbar, idx):
+              down2, up2, aeinst, beinstu, beinstl, nline, nlev, ntrans, ntrans2, jbar, idx):
     """
     Calculate the matrix.
 
@@ -101,13 +101,13 @@ def getmatrix(part2id, phot, nh2, ne, lau, lal, lcu, lcl, lcu2, lcl2, down, up,
 
     # create collision rate matrix and sum by rows. Add the conservation
     # equation to the left hand side (at position nlev+1).
-    for i in range(nlev):
+    for i in range(ntrans):
         colli[lcu[i], lcl[i]] = down[i, idx]
         colli[lcl[i], lcu[i]] = up[i, idx]
     ctot = np.sum(colli, axis=1)
 
     if part2id:
-        for i in range(nlev):
+        for i in range(ntrans2):
             colli2[lcu2[i], lcl2[i]] = down2[i, idx]
             colli2[lcl2[i], lcu2[i]] = up2[i, idx]
         ctot2 = np.sum(colli2, axis=1)
@@ -139,7 +139,7 @@ def solvematrix(ratem, newpop):
 
 
 @jit(nopython=True)
-def stateq(part2id, phot, nmol, nh2, ne, doppb, lau, lal, lcu, lcl, lcu2, lcl2, down, up, down2, up2, aeinst, beinstu, beinstl, blending, blends, nline, nlev, pops, dust, knu, norm, minpop, idx, miniter=10, maxiter=100, tol=1e0-6):
+def stateq(part2id, phot, nmol, nh2, ne, doppb, lau, lal, lcu, lcl, lcu2, lcl2, down, up, down2, up2, aeinst, beinstu, beinstl, blending, blends, nline, nlev, ntrans, ntrans2, pops, dust, knu, norm, minpop, idx, miniter=10, maxiter=100, tol=1e0-6):
     """
     Iterate for convergence between radiation field and excitation.
 
@@ -172,7 +172,7 @@ def stateq(part2id, phot, nmol, nh2, ne, doppb, lau, lal, lcu, lcl, lcu2, lcl2, 
         newpop[-1] = 1.
 
         # fill collision rate matrix
-        ratem = getmatrix(part2id, phot, nh2, ne, lau, lal, lcu, lcl, lcu2, lcl2, down, up, down2, up2, aeinst, beinstu, beinstl, nline, nlev, jbar, idx)
+        ratem = getmatrix(part2id, phot, nh2, ne, lau, lal, lcu, lcl, lcu2, lcl2, down, up, down2, up2, aeinst, beinstu, beinstl, nline, nlev, ntrans, ntrans2, jbar, idx)
 
         newpop = solvematrix(ratem, newpop)
 
