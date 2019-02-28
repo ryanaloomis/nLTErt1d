@@ -8,6 +8,7 @@ from blowpops import blowpops
 from time import time
 import scipy.constants as sc
 from numba import jit
+from common import *
 
 class simulation:
     """The main simulation class."""
@@ -167,7 +168,13 @@ class simulation:
                         self.blending, self.mol.blends,
                         self.model.tcmb, self.ncell, self.pops,
                         self.dust, self.knu, self.norm, self.cmb,
-                        self.nchan, int(self.nchan/2.) + 1, self.velres, self.rt_lines)
+                        self.nchan, int(self.nchan/2.), self.velres, self.rt_lines)
+
+        # TODO make this flexible for other units
+        # Convert to K
+        ucon = (sc.c/self.mol.freq[self.rt_lines])**2./2./kboltz
+        intens = intens*ucon[:,np.newaxis]*self.norm[self.rt_lines][:,np.newaxis]
+
         return intens, tau
 
 
