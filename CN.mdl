@@ -1,0 +1,9 @@
+# Grid-based velocity field
+rmax=1.197E+15
+ncell=2
+tcmb=2.728
+columns=id,ra,rb,nh,nm,tk,td,db,vr
+gas:dust=100
+@
+   1  0.00000E+00  8.00E+11  1.E+7  3.E-3  30.  20.  .2E+00 0.
+   2  8.0E+11      16.0E+11  1.E+7  3.E-3  40.  25.  .2E+00 0.

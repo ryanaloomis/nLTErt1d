@@ -39,7 +39,7 @@ def calcLineAmp(b, vel_grid, rpos, ds, phi, deltav, idx):
 
 
 def losintegr(rmax, ra, rb, nmol, nh2, doppb, vel_grid, lau, lal, aeinst, beinstu, beinstl, blending, blends, tcmb, ncell, pops, dust, knu, norm, cmb, nchan, vcen, velres, rt_lines):
-    reflect=True
+    reflect=False
     tau = np.zeros((len(rt_lines), nchan))
     intens = np.zeros((len(rt_lines), nchan))
 
@@ -50,7 +50,7 @@ def losintegr(rmax, ra, rb, nmol, nh2, doppb, vel_grid, lau, lal, aeinst, beinst
     phi = -np.pi
 
     posn = ncell-1
-    
+
     costheta=1.
     sintheta=0.
     cosphi=np.cos(phi)
@@ -98,11 +98,11 @@ def losintegr(rmax, ra, rb, nmol, nh2, doppb, vel_grid, lau, lal, aeinst, beinst
                     if np.abs(alpha) < 0: snu = 0.
 
                     dtau = alpha*ds
-                    if dtau < negtaulim: dtau = negtaulim  
+                    if dtau < negtaulim: dtau = negtaulim
 
                     intens[idx,ichan] += np.exp(-tau[idx,ichan])*(1.-np.exp(-dtau))*snu
                     tau[idx,ichan] += dtau
-                    
+
                     # Line blending step
                     if blending:
                         for iblend in range(blends.shape[0]):
@@ -118,14 +118,14 @@ def losintegr(rmax, ra, rb, nmol, nh2, doppb, vel_grid, lau, lal, aeinst, beinst
                                 bjnu = bvfac*hpip/b*nmol[posn]*pops[lau,posn][jline]*aeinst[jline]
                                 balpha = bvfac*hpip/b*nmol[posn]*(pops[lal,posn][jline]*beinstl[jline] - pops[lau,posn][jline]*beinstu[jline])
 
-                                if np.abs(balpha) < eps: 
+                                if np.abs(balpha) < eps:
                                     bsnu = 0.
-                                else:                            
-                                    bsnu = bjnu/balpha/norm[jline]                        
+                                else:
+                                    bsnu = bjnu/balpha/norm[jline]
 
                                 bdtau = balpha*ds
-                                if bdtau < negtaulim: bdtau = negtaulim                   
-                        
+                                if bdtau < negtaulim: bdtau = negtaulim
+
                                 intens[idx,ichan] += np.exp(-tau[idx,ichan])*(1. - np.exp(-bdtau))*bsnu
                                 tau[idx,ichan] += bdtau
 
@@ -184,11 +184,11 @@ def losintegr(rmax, ra, rb, nmol, nh2, doppb, vel_grid, lau, lal, aeinst, beinst
                         if np.abs(alpha) < 0: snu = 0.
 
                         dtau = alpha*ds
-                        if dtau < negtaulim: dtau = negtaulim  
+                        if dtau < negtaulim: dtau = negtaulim
 
                         intens[idx,ichan] += np.exp(-tau[idx,ichan])*(1.-np.exp(-dtau))*snu
                         tau[idx,ichan] += dtau
-                        
+
                         # Line blending step
                         if blending:
                             for iblend in range(blends.shape[0]):
@@ -204,14 +204,14 @@ def losintegr(rmax, ra, rb, nmol, nh2, doppb, vel_grid, lau, lal, aeinst, beinst
                                     bjnu = bvfac*hpip/b*nmol[posn]*pops[lau,posn][jline]*aeinst[jline]
                                     balpha = bvfac*hpip/b*nmol[posn]*(pops[lal,posn][jline]*beinstl[jline] - pops[lau,posn][jline]*beinstu[jline])
 
-                                    if np.abs(balpha) < eps: 
+                                    if np.abs(balpha) < eps:
                                         bsnu = 0.
-                                    else:                            
-                                        bsnu = bjnu/balpha/norm[jline]                        
+                                    else:
+                                        bsnu = bjnu/balpha/norm[jline]
 
                                     bdtau = balpha*ds
-                                    if bdtau < negtaulim: bdtau = negtaulim                   
-                            
+                                    if bdtau < negtaulim: bdtau = negtaulim
+
                                     intens[idx,ichan] += np.exp(-tau[idx,ichan])*(1. - np.exp(-bdtau))*bsnu
                                     tau[idx,ichan] += bdtau
 

@@ -4,7 +4,7 @@ import numpy as np
 
 if __name__ == "__main__":
     # Set up simulation
-    sim = simulation('example.mdl', 'example.pop', 'hco+.dat', 20, 1000, kappa='jena,thin,e5', blending=False)
+    sim = simulation('CN.mdl', 'CN.pop', 'cn-hfs.dat', 15, 300, kappa='jena,thin,e5', blending=True, rt_lines=[41], velres=0.02, nchan=300)
 
     # Calculate the level populations
     sim.calc_pops()
@@ -12,11 +12,11 @@ if __name__ == "__main__":
     # Do the raytracing
     intens, tau = sim.raytrace()
 
-    for idx, line in enumerate([0,1,2]):
+    for idx, line in enumerate([41]):
         pl.plot(intens[idx])
         pl.show()
 
-    for idx, line in enumerate([0,1,2]):
+    for idx, line in enumerate([41]):
         pl.plot(tau[idx])
         pl.show()
 
