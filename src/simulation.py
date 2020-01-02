@@ -86,9 +86,9 @@ class simulation:
         if velocity_function is not None:
             self.model.velo = simulation.import_velocity(velocity_function)
 
-        # Read in the LAMDA molecular data file
+        # Read in the molecular data file (assumes currently LAMDA format).
         try:
-            self.mol = molecule(self, self.molfile)
+            self.mol = molecule(self.molfile)
         except Exception:
             raise Exception("Couldn't parse molecular data.")
         self.blends = self.get_blends(blend_limit)

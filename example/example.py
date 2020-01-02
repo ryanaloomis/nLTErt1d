@@ -16,7 +16,7 @@ if __name__ == "__main__":
                      outfile='example.pop',
                      # molfile='hco+.dat',
                      molfile='cn-hfs.dat',
-                     goalsnr=2,
+                     goalsnr=20,
                      nphot=100,
                      kappa='jena,thin,e5',
                      blending=False,
@@ -29,9 +29,10 @@ if __name__ == "__main__":
     lines = [4, 5, 10]
 
     # Do the raytracing
+
     velax, intens, tau = sim.raytrace(v_min=-3e3,
                                       v_max=3e3,
-                                      dv=250.0,
+                                      dv=20.0,
                                       rt_lines=lines)
     # Plot the intensities.
     for idx, line in enumerate(lines):
